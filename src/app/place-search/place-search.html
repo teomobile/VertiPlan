@@ -1,0 +1,31 @@
+<div class="box">
+  <input
+    #input
+    type="search"
+    [placeholder]="placeholder()"
+    (input)="onInput(input.value)"
+    (keydown)="onKeydown($event)"
+    (blur)="results.set([])"
+    autocomplete="off"
+    aria-label="Cerca un luogo"
+  />
+  @if (searching()) {
+    <span class="spinner" aria-hidden="true"></span>
+  }
+</div>
+
+@if (results().length) {
+  <ul class="results" role="listbox">
+    @for (r of results(); track $index) {
+      <!-- mousedown: scatta prima del blur dell'input, che chiuderebbe la lista -->
+      <li role="option" [class.active]="$index === active()" [attr.aria-selected]="$index === active()" (mousedown)="$event.preventDefault(); pick(r)" (mouseenter)="active.set($index)">
+        <b>{{ r.name }}</b>
+        @if (r.detail) {
+          <small>{{ r.detail }}</small>
+        }
+      </li>
+    }
+  </ul>
+} @else if (error() && query().trim().length >= 2) {
+  <p class="msg">{{ error() }}</p>
+}

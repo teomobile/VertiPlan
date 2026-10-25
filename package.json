@@ -26,8 +26,13 @@
     "@angular/forms": "^20.0.0",
     "@angular/platform-browser": "^20.0.0",
     "@angular/router": "^20.0.0",
+    "@tmcw/togeojson": "^7.1.3",
+    "@turf/helpers": "^7.4.0",
+    "@turf/nearest-point-on-line": "^7.4.0",
+    "maplibre-gl": "^5.24.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
+    "uplot": "^1.6.32",
     "zone.js": "~0.15.0"
   },
   "devDependencies": {

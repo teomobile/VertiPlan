@@ -1,0 +1,24 @@
+<header>
+  <strong>Altimetria</strong>
+  @if (hoverInfo(); as h) {
+    <span class="readout">
+      <b>{{ h.dist.toFixed(2) }} km</b>
+      @if (h.ele != null) { · {{ h.ele.toFixed(0) }} m }
+      @if (h.slope != null) { · pendenza {{ h.slope.toFixed(0) }}% }
+    </span>
+  } @else if (store.hasElevation()) {
+    <span class="hint">Passa sul grafico o sul percorso · trascina per selezionare un tratto</span>
+  }
+  @if (store.selection()) {
+    <button type="button" class="link" (click)="clearSelection()">Annulla selezione</button>
+  }
+</header>
+
+<div class="chart" #chart></div>
+
+@if (!store.hasElevation()) {
+  <div class="empty">
+    @if (store.loading()) { Calcolo in corso… }
+    @else { Clicca sulla mappa per aggiungere almeno due tappe, oppure importa un GPX. }
+  </div>
+}

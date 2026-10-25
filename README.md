@@ -1,59 +1,75 @@
 # Crinalia
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.0.4.
+Webapp Angular per pianificare escursioni: mappa OSM con i sentieri, percorso calcolato sui sentieri,
+profilo altimetrico sincronizzato con la mappa, import/export GPX.
 
-## Development server
-
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Avvio
 
 ```bash
-ng generate component component-name
+npm install
+npm start
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Poi apri http://localhost:4200.
+
+## Uso
+
+- **Clic sulla mappa**: aggiunge una tappa (la prima è la partenza). Trascina le tappe per spostarle, doppio clic per eliminarle.
+- **Tappe come testo**: nel pannello scrivi un luogo (rifugio, cima, paese) o delle coordinate `lat, lon`. Clic sul nome di una tappa per sostituirla, frecce per riordinare.
+- **Profilo altimetrico**: passa il mouse sul grafico per vedere il punto sulla mappa, o sul percorso per vedere il punto sul grafico. Trascina sul grafico per selezionare un tratto (statistiche del tratto nel pannello).
+- **GPX**: "Importa GPX" oppure trascina il file sulla mappa. Se il GPX non ha le quote vengono prese dal modello del terreno.
+- Il percorso pianificato resta salvato nel browser (localStorage).
+
+## Sentieri SAT (Trentino)
+
+Il layer "Sentieri SAT" legge `public/data/sat-sentieri.geojson`, generato dai tracciati ufficiali SAT
+(© SAT - Società degli Alpinisti Tridentini, licenza ODbL 1.0). La SAT li aggiorna a inizio mese; per rigenerarli:
 
 ```bash
-ng generate --help
+curl -o data/sat-raw/sentierisat.kml.zip https://sentieri.sat.tn.it/download/sentierisat.kml.zip
 ```
-
-## Building
-
-To build the project run:
 
 ```bash
-ng build
+unzip -o data/sat-raw/sentierisat.kml.zip -d data/sat-raw
 ```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
 
 ```bash
-ng test
+node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 ```
 
-## Running end-to-end tests
+Colori: T verde, E rosso, EE viola tratteggiato, EEA (ferrate) nero puntinato. Passando col mouse su un sentiero
+si vede la scheda (numero, località, quote, lunghezza, tempi).
 
-For end-to-end (e2e) testing, run:
+## Servizi esterni
 
-```bash
-ng e2e
+| Cosa | Servizio | Note |
+|---|---|---|
+| Mappa base | tile.openstreetmap.org, OpenTopoMap | Rispettare le policy d'uso: niente download massivi |
+| Sentieri | Waymarked Trails (overlay hiking) | Spento di default, si accende da "Sentieri OSM" |
+| Ricerca luoghi | Photon (photon.komoot.io) | Ricerca e nome automatico delle tappe |
+| Font etichette | OpenFreeMap | |
+| Calcolo percorso | BRouter pubblico (brouter.de) | Profili `hiking-mountain`, `hiking-beta`, `trekking` |
+| Quote | Open-Meteo Elevation API (Copernicus DEM 90 m) | Solo per le tracce senza quota |
+
+## Struttura
+
+```
+src/app/
+  core/
+    geo.ts               calcoli su traccia: distanze, interpolazione, statistiche (DIN 33466)
+    gpx.ts               parsing ed export GPX
+    routing.service.ts   BRouter, con cache per tratto
+    elevation.service.ts quote mancanti da Open-Meteo
+    route-store.ts       stato condiviso (signals): tappe, traccia, hover, selezione
+  map-view/              MapLibre: livelli, tappe, marker di hover
+  elevation-profile/     grafico uPlot sincronizzato
+  sidebar/               statistiche, tappe, azioni
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+## Prossimi passi
 
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- Scheda sentiero SAT anche al tocco (mobile) e "aggiungi questo sentiero al percorso"
+- Inserire una tappa intermedia trascinando la linea del percorso
+- Ombreggiatura del rilievo e rilievo 3D (dati DEM in formato terrain-RGB)
+- Percorsi salvati multipli / backend
+- App Android con Capacitor, mappe offline in PMTiles

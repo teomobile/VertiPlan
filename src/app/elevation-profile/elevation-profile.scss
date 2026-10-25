@@ -1,0 +1,46 @@
+:host {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 8px 12px 4px;
+  min-height: 0;
+}
+
+header {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  font-size: 13px;
+  min-height: 20px;
+
+  .readout {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hint {
+    color: var(--text-muted);
+  }
+
+  .link {
+    margin-left: auto;
+  }
+}
+
+.chart {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.empty {
+  position: absolute;
+  inset: 28px 12px 12px;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+}

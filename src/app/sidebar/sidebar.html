@@ -1,0 +1,115 @@
+<div class="brand">
+  <svg viewBox="0 0 32 20" aria-hidden="true"><path d="M1 19 L11 5 L16 11 L21 3 L31 19 Z" /></svg>
+  <span>Crinalia</span>
+</div>
+
+<section>
+  <input class="name" [value]="store.name()" (input)="store.name.set($any($event.target).value)" aria-label="Nome del percorso" />
+
+  @if (store.mode() === 'plan') {
+    <label class="field">
+      <span>Calcolo percorso</span>
+      <select [value]="store.profile()" (change)="onProfile($any($event.target).value)">
+        @for (p of profiles; track p.id) {
+          <option [value]="p.id">{{ p.label }}</option>
+        }
+      </select>
+    </label>
+  } @else {
+    <p class="note">Traccia importata da GPX. Clicca sulla mappa per iniziare un nuovo percorso.</p>
+  }
+</section>
+
+<section class="stats">
+  <div><small>Distanza</small><b>{{ store.stats().distanceKm.toFixed(2) }} km</b></div>
+  <div><small>Tempo stimato</small><b>{{ formatDuration(store.stats().durationMin) }}</b></div>
+  <div><small>Salita</small><b>↗ {{ store.stats().ascent.toFixed(0) }} m</b></div>
+  <div><small>Discesa</small><b>↘ {{ store.stats().descent.toFixed(0) }} m</b></div>
+  <div><small>Quota min</small><b>{{ store.stats().minEle?.toFixed(0) ?? '–' }} m</b></div>
+  <div><small>Quota max</small><b>{{ store.stats().maxEle?.toFixed(0) ?? '–' }} m</b></div>
+</section>
+
+@if (store.selectionStats(); as s) {
+  <section class="selection">
+    <header>
+      <strong>Tratto selezionato</strong>
+      <button type="button" class="link" (click)="store.selection.set(null)">Annulla</button>
+    </header>
+    <p>
+      {{ s.distanceKm.toFixed(2) }} km · ↗ {{ s.ascent.toFixed(0) }} m · ↘ {{ s.descent.toFixed(0) }} m ·
+      {{ formatDuration(s.durationMin) }}
+    </p>
+  </section>
+}
+
+@if (store.loading()) {
+  <p class="status">Calcolo in corso…</p>
+}
+@if (store.error(); as err) {
+  <p class="status error">{{ err }}</p>
+}
+
+@if (store.mode() === 'plan') {
+  <section>
+    <h3>Tappe</h3>
+    <ol class="waypoints">
+      @for (w of store.waypoints(); track $index; let i = $index, first = $first, last = $last, count = $count) {
+        <li>
+          <span class="badge" [class.start]="first" [class.end]="last && !first">{{ first ? 'A' : last ? 'B' : i }}</span>
+          @if (editing() === i) {
+            <app-place-search
+              class="grow"
+              [initial]="w.name ?? ''"
+              [autofocus]="true"
+              placeholder="Sostituisci con…"
+              (picked)="onReplace(i, $event)"
+              (cancelled)="editing.set(null)"
+            />
+            <button type="button" class="icon" (click)="editing.set(null)" title="Annulla">✕</button>
+          } @else {
+            <button type="button" class="wp-name" (click)="editing.set(i)" title="Clicca per cercare un altro luogo">
+              @if (w.name) {
+                {{ w.name }}
+              } @else {
+                <span class="coords">{{ w.lat.toFixed(5) }}, {{ w.lon.toFixed(5) }}</span>
+              }
+            </button>
+            <span class="row-actions">
+              <button type="button" class="icon" (click)="store.shiftWaypoint(i, -1)" [disabled]="first" title="Sposta su">↑</button>
+              <button type="button" class="icon" (click)="store.shiftWaypoint(i, 1)" [disabled]="last" title="Sposta giù">↓</button>
+              <button type="button" class="icon danger" (click)="store.removeWaypoint(i)" title="Elimina tappa">✕</button>
+            </span>
+          }
+        </li>
+      }
+    </ol>
+    <app-place-search
+      [placeholder]="store.waypoints().length ? 'Aggiungi tappa: luogo o lat, lon' : 'Partenza: luogo o lat, lon'"
+      (picked)="onAdd($event)"
+    />
+    @if (store.waypoints().length < 2) {
+      <p class="note">
+        Scrivi un rifugio, una cima, un paese o delle coordinate, oppure clicca sulla mappa. Trascina i punti per
+        spostarli, doppio clic per eliminarli.
+      </p>
+    }
+  </section>
+}
+
+<section class="actions">
+  <button type="button" (click)="store.undo()" [disabled]="store.mode() !== 'plan' || !store.waypoints().length">Annulla ultima</button>
+  <button type="button" (click)="store.reverse()" [disabled]="store.track().length < 2">Inverti</button>
+  <button type="button" (click)="store.clear()">Cancella tutto</button>
+</section>
+
+<section class="actions gpx">
+  <button type="button" class="primary" (click)="file.click()">Importa GPX</button>
+  <button type="button" class="primary" (click)="store.exportGpx()" [disabled]="store.track().length < 2">Esporta GPX</button>
+  <input #file type="file" accept=".gpx,application/gpx+xml" hidden (change)="onFile(file)" />
+</section>
+
+<footer>
+  Percorsi: <a href="https://brouter.de" target="_blank" rel="noopener">BRouter</a> · Quote:
+  <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (Copernicus DEM) · Dati ©
+  OpenStreetMap
+</footer>

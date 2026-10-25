@@ -1,0 +1,33 @@
+<div class="map" #map></div>
+
+<div class="panel">
+  <div class="layers">
+    @for (l of baseLayers; track l.id) {
+      <button type="button" [class.active]="base() === l.id" (click)="base.set(l.id)">{{ l.label }}</button>
+    }
+    <label class="toggle">
+      <input type="checkbox" [checked]="showSat()" (change)="showSat.set(!showSat())" />
+      Sentieri SAT
+    </label>
+    <label class="toggle">
+      <input type="checkbox" [checked]="showTrails()" (change)="showTrails.set(!showTrails())" />
+      Sentieri OSM
+    </label>
+  </div>
+
+  @if (showSat()) {
+    <ul class="legend">
+      @for (d of satLegend; track d.id) {
+        <li><i [class]="'sw sw-' + d.id" [style.--c]="d.color"></i>{{ d.label }}</li>
+      }
+    </ul>
+  }
+</div>
+
+@if (store.track().length > 1) {
+  <button type="button" class="fit" (click)="fitTrack()" title="Inquadra il percorso">⤢</button>
+}
+
+@if (dragging()) {
+  <div class="drop">Rilascia il file GPX</div>
+}

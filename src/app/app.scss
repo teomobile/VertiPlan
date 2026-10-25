@@ -1,0 +1,29 @@
+:host {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  height: 100dvh;
+}
+
+main {
+  display: grid;
+  grid-template-rows: 1fr 210px;
+  min-width: 0;
+  min-height: 0;
+}
+
+@media (max-width: 800px) {
+  :host {
+    grid-template-columns: 1fr;
+    grid-template-rows: 60dvh auto;
+    height: auto;
+  }
+
+  app-sidebar {
+    order: 2;
+    border-right: 0;
+  }
+
+  main {
+    grid-template-rows: 1fr 170px;
+  }
+}
