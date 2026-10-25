@@ -15,6 +15,7 @@ Poi apri http://localhost:4200.
 ## Uso
 
 - **Clic sulla mappa**: aggiunge una tappa (la prima è la partenza). Trascina le tappe per spostarle, doppio clic per eliminarle.
+- **Percorsi consigliati**: nella scheda omonima trovi i percorsi segnati nella zona inquadrata. Clic per vederlo in mappa con la scheda, "Usa come percorso" per caricarlo con altimetria ed export GPX.
 - **Tappe come testo**: nel pannello scrivi un luogo (rifugio, cima, paese) o delle coordinate `lat, lon`. Clic sul nome di una tappa per sostituirla, frecce per riordinare.
 - **Profilo altimetrico**: passa il mouse sul grafico per vedere il punto sulla mappa, o sul percorso per vedere il punto sul grafico. Trascina sul grafico per selezionare un tratto (statistiche del tratto nel pannello).
 - **GPX**: "Importa GPX" oppure trascina il file sulla mappa. Se il GPX non ha le quote vengono prese dal modello del terreno.
@@ -49,7 +50,8 @@ si vede la scheda (numero, località, quote, lunghezza, tempi).
 | Ricerca luoghi | Photon (photon.komoot.io) | Ricerca e nome automatico delle tappe |
 | Font etichette | OpenFreeMap | |
 | Calcolo percorso | BRouter pubblico (brouter.de) | Profili `hiking-mountain`, `hiking-beta`, `trekking` |
-| Quote | Open-Meteo Elevation API (Copernicus DEM 90 m) | Solo per le tracce senza quota |
+| Quote | Terrain Tiles su AWS Open Data (EU-DEM / SRTM, ~30 m) | Lette dai pixel delle tile, solo per le tracce senza quota |
+| Percorsi consigliati | API Waymarked Trails | Percorsi escursionistici segnati in OSM (internazionali → locali) |
 
 ## Struttura
 
@@ -59,7 +61,9 @@ src/app/
     geo.ts               calcoli su traccia: distanze, interpolazione, statistiche (DIN 33466)
     gpx.ts               parsing ed export GPX
     routing.service.ts   BRouter, con cache per tratto
-    elevation.service.ts quote mancanti da Open-Meteo
+    elevation.service.ts quote mancanti dalle tile Terrarium
+    recommended-routes.service.ts  percorsi segnati (Waymarked Trails)
+  routes-panel/          scheda "Percorsi consigliati": lista, dettaglio, "Usa come percorso"
     route-store.ts       stato condiviso (signals): tappe, traccia, hover, selezione
   map-view/              MapLibre: livelli, tappe, marker di hover
   elevation-profile/     grafico uPlot sincronizzato

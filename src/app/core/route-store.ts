@@ -1,6 +1,7 @@
 import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { ElevationService } from './elevation.service';
 import { GeocodingService } from './geocoding.service';
+import { Bounds, RouteDetails } from './recommended-routes.service';
 import { buildTrack, computeStats, LngLat, sliceTrack, TrackPoint, Waypoint } from './geo';
 import { buildGpx, downloadText, parseGpx } from './gpx';
 import { RoutingProfile, RoutingService, straightLine } from './routing.service';
@@ -49,6 +50,12 @@ export class RouteStore {
   readonly flyRequest = signal<LngLat | null>(null);
   /** Centro della mappa, usato per dare priorità ai risultati di ricerca vicini. */
   readonly mapCenter = signal<LngLat | null>(null);
+  /** Area inquadrata, per elencare i percorsi consigliati visibili. */
+  readonly mapBounds = signal<Bounds | null>(null);
+  /** Area da inquadrare (es. un percorso consigliato scelto dalla lista). */
+  readonly fitBoundsRequest = signal<[number, number, number, number] | null>(null);
+  /** Percorso consigliato evidenziato in mappa. */
+  readonly recommended = signal<RouteDetails | null>(null);
 
   readonly stats = computed(() => computeStats(this.track()));
   readonly selectionStats = computed(() => {
@@ -141,21 +148,28 @@ export class RouteStore {
   // --- GPX ---------------------------------------------------------------
 
   async importGpx(file: File): Promise<void> {
+    try {
+      const parsed = parseGpx(await file.text(), file.name.replace(/\.gpx$/i, ''));
+      await this.loadTrack(parsed.name, parsed.coords);
+    } catch (e) {
+      this.error.set((e as Error).message);
+    }
+  }
+
+  /** Carica una traccia non modificabile (GPX, percorso consigliato), completando le quote mancanti. */
+  async loadTrack(name: string, raw: number[][]): Promise<void> {
     this.error.set(null);
     this.loading.set(true);
     try {
-      const parsed = parseGpx(await file.text(), file.name.replace(/\.gpx$/i, ''));
-      const coords = await this.elevation.fill(parsed.coords).catch((e) => {
+      const coords = await this.elevation.fill(raw).catch((e) => {
         this.error.set(`Quote non disponibili: ${e.message}`);
-        return parsed.coords;
+        return raw;
       });
       this.mode.set('track');
       this.waypoints.set([]);
-      this.name.set(parsed.name);
+      this.name.set(name);
       this.setTrack(coords);
       this.fitRequest.update((n) => n + 1);
-    } catch (e) {
-      this.error.set((e as Error).message);
     } finally {
       this.loading.set(false);
     }

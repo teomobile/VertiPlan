@@ -50,6 +50,11 @@ const STYLE: StyleSpecification = {
       attribution: 'Sentieri © <a href="https://hiking.waymarkedtrails.org">Waymarked Trails</a>',
     },
     sat: SAT_SOURCE,
+    recommended: {
+      type: 'geojson',
+      data: emptyLine(),
+      attribution: 'Percorsi © <a href="https://hiking.waymarkedtrails.org">Waymarked Trails</a> / OSM',
+    },
     route: { type: 'geojson', data: emptyLine() },
     selection: { type: 'geojson', data: emptyLine() },
   },
@@ -58,6 +63,20 @@ const STYLE: StyleSpecification = {
     { id: 'otm', type: 'raster', source: 'otm', layout: { visibility: 'none' } },
     { id: 'trails', type: 'raster', source: 'trails', paint: { 'raster-opacity': 0.85 } },
     ...SAT_LAYERS,
+    {
+      id: 'recommended-casing',
+      type: 'line',
+      source: 'recommended',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.9 },
+    },
+    {
+      id: 'recommended-line',
+      type: 'line',
+      source: 'recommended',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': '#1971c2', 'line-width': 5, 'line-opacity': 0.85 },
+    },
     {
       id: 'route-casing',
       type: 'line',
@@ -200,6 +219,23 @@ export class MapView implements OnDestroy {
       this.map.flyTo({ center: [p.lon, p.lat], zoom: Math.max(this.map.getZoom(), 13) });
     });
 
+    // percorso consigliato selezionato
+    effect(() => {
+      const r = this.store.recommended();
+      if (!this.ready()) return;
+      this.source('recommended').setData(
+        r
+          ? { type: 'Feature', properties: {}, geometry: { type: 'MultiLineString', coordinates: r.lines } }
+          : emptyLine(),
+      );
+    });
+
+    effect(() => {
+      const box = this.store.fitBoundsRequest();
+      if (!box || !this.ready() || !this.map) return;
+      this.map.fitBounds(box, { padding: 60, duration: 600 });
+    });
+
     // inquadra tutta la traccia dopo un import
     effect(() => {
       if (this.store.fitRequest() === 0 || !this.ready()) return;
@@ -256,9 +292,12 @@ export class MapView implements OnDestroy {
   private bindEvents(map: MlMap): void {
     const updateCenter = () => {
       const c = map.getCenter();
+      const b = map.getBounds();
       this.store.mapCenter.set({ lon: c.lng, lat: c.lat });
+      this.store.mapBounds.set({ west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() });
     };
-    map.on('load', updateCenter);
+    // subito, senza aspettare il caricamento delle tile: serve già alla ricerca e ai percorsi consigliati
+    updateCenter();
     map.on('moveend', updateCenter);
 
     map.on('click', (e) => {

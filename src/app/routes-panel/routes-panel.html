@@ -1,0 +1,93 @@
+@if (selected(); as d) {
+  <article class="card">
+    <header>
+      @if (d.symbolUrl) {
+        <img class="symbol" [src]="d.symbolUrl" alt="" />
+      }
+      <div class="title">
+        <strong>{{ d.name }}</strong>
+        <small>{{ groupLabel(d.group) }}@if (d.ref && d.ref !== d.name) { · {{ d.ref }} }</small>
+      </div>
+      <button type="button" class="icon" (click)="close()" title="Chiudi">✕</button>
+    </header>
+
+    @if (d.from || d.to) {
+      <p class="fromto">{{ d.from }} → {{ d.roundtrip ? d.from || d.to : d.to }}</p>
+    }
+
+    <dl>
+      <div><dt>Lunghezza</dt><dd>{{ d.lengthKm.toFixed(1) }} km</dd></div>
+      <div><dt>Tipo</dt><dd>{{ d.roundtrip ? 'Anello' : 'Da A a B' }}</dd></div>
+      @if (d.difficulty) {
+        <div><dt>Difficoltà</dt><dd>{{ d.difficulty }}</dd></div>
+      }
+      @if (d.operator) {
+        <div class="wide"><dt>Gestione</dt><dd>{{ d.operator }}</dd></div>
+      }
+    </dl>
+
+    @if (d.description) {
+      <p class="desc">{{ d.description }}</p>
+    }
+
+    <div class="links">
+      @if (d.website) {
+        <a [href]="d.website" target="_blank" rel="noopener">Sito del percorso</a>
+      }
+      <a [href]="d.url" target="_blank" rel="noopener">Waymarked Trails</a>
+    </div>
+
+    <button type="button" class="primary" (click)="useAsRoute()" [disabled]="d.path.length < 2">Usa come percorso</button>
+  </article>
+}
+
+<div class="toolbar">
+  <input
+    type="search"
+    placeholder="Filtra per nome o località"
+    [value]="filter()"
+    (input)="filter.set($any($event.target).value)"
+    aria-label="Filtra i percorsi"
+  />
+  @if (listLoading()) {
+    <span class="spinner" aria-hidden="true"></span>
+  }
+</div>
+
+@if (error(); as err) {
+  <p class="status error">{{ err }}</p>
+}
+
+@for (g of groups(); track g.id) {
+  <section>
+    <h3>{{ g.label }} <span class="count">{{ g.routes.length }}</span></h3>
+    <ul>
+      @for (r of g.routes; track r.id) {
+        <li>
+          <button type="button" [class.active]="selected()?.id === r.id" (click)="select(r)">
+            @if (r.symbolUrl) {
+              <img class="symbol" [src]="r.symbolUrl" alt="" loading="lazy" />
+            } @else {
+              <span class="symbol"></span>
+            }
+            <span class="text">
+              <span class="name">{{ r.name }}</span>
+              @if (r.itinerary.length) {
+                <small>{{ r.itinerary.join(' → ') }}</small>
+              }
+            </span>
+            @if (detailLoading() === r.id) {
+              <span class="spinner" aria-hidden="true"></span>
+            }
+          </button>
+        </li>
+      }
+    </ul>
+  </section>
+} @empty {
+  @if (!listLoading() && store.mapBounds() && !error()) {
+    <p class="note">Nessun percorso segnato in questa zona. Sposta o allarga la mappa.</p>
+  }
+}
+
+<p class="note">Percorsi escursionistici segnati in OpenStreetMap, aggiornati quando sposti la mappa.</p>

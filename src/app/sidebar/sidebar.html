@@ -3,6 +3,18 @@
   <span>Crinalia</span>
 </div>
 
+<nav class="tabs" role="tablist">
+  <button type="button" role="tab" [class.active]="tab() === 'plan'" [attr.aria-selected]="tab() === 'plan'" (click)="tab.set('plan')">
+    Pianifica
+  </button>
+  <button type="button" role="tab" [class.active]="tab() === 'routes'" [attr.aria-selected]="tab() === 'routes'" (click)="tab.set('routes')">
+    Percorsi consigliati
+  </button>
+</nav>
+
+@if (tab() === 'routes') {
+  <app-routes-panel (used)="tab.set('plan')" />
+} @else {
 <section>
   <input class="name" [value]="store.name()" (input)="store.name.set($any($event.target).value)" aria-label="Nome del percorso" />
 
@@ -16,7 +28,7 @@
       </select>
     </label>
   } @else {
-    <p class="note">Traccia importata da GPX. Clicca sulla mappa per iniziare un nuovo percorso.</p>
+    <p class="note">Traccia caricata (GPX o percorso consigliato). Clicca sulla mappa per iniziare un nuovo percorso.</p>
   }
 </section>
 
@@ -107,9 +119,10 @@
   <button type="button" class="primary" (click)="store.exportGpx()" [disabled]="store.track().length < 2">Esporta GPX</button>
   <input #file type="file" accept=".gpx,application/gpx+xml" hidden (change)="onFile(file)" />
 </section>
+}
 
 <footer>
   Percorsi: <a href="https://brouter.de" target="_blank" rel="noopener">BRouter</a> · Quote:
-  <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (Copernicus DEM) · Dati ©
+  <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">Terrain Tiles</a> (EU-DEM, SRTM) · Dati ©
   OpenStreetMap
 </footer>

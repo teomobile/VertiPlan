@@ -4,10 +4,11 @@ import { PlaceResult } from '../core/geocoding.service';
 import { RouteStore } from '../core/route-store';
 import { ROUTING_PROFILES, RoutingProfile } from '../core/routing.service';
 import { PlaceSearch } from '../place-search/place-search';
+import { RoutesPanel } from '../routes-panel/routes-panel';
 
 @Component({
   selector: 'app-sidebar',
-  imports: [PlaceSearch],
+  imports: [PlaceSearch, RoutesPanel],
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.scss',
 })
@@ -17,6 +18,7 @@ export class Sidebar {
   protected readonly formatDuration = formatDuration;
   /** Indice della tappa che si sta sostituendo con una ricerca. */
   protected readonly editing = signal<number | null>(null);
+  protected readonly tab = signal<'plan' | 'routes'>('plan');
 
   protected onProfile(value: string): void {
     this.store.profile.set(value as RoutingProfile);
