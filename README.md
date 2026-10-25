@@ -15,6 +15,7 @@ Poi apri http://localhost:4200.
 ## Uso
 
 - **Clic sulla mappa**: aggiunge una tappa (la prima è la partenza). Trascina le tappe per spostarle, doppio clic per eliminarle.
+- **I miei percorsi**: i GPX importati vengono salvati automaticamente (senza doppioni); "Salva" conserva anche i percorsi pianificati (che si riaprono modificabili) e quelli consigliati. Da qui si riaprono, rinominano, eliminano e scaricano come GPX. I dati stanno in IndexedDB, solo in questo browser.
 - **Percorsi consigliati**: nella scheda omonima trovi i percorsi segnati nella zona inquadrata. Clic per vederlo in mappa con la scheda, "Usa come percorso" per caricarlo con altimetria ed export GPX.
 - **Tappe come testo**: nel pannello scrivi un luogo (rifugio, cima, paese) o delle coordinate `lat, lon`. Clic sul nome di una tappa per sostituirla, frecce per riordinare.
 - **Profilo altimetrico**: passa il mouse sul grafico per vedere il punto sulla mappa, o sul percorso per vedere il punto sul grafico. Trascina sul grafico per selezionare un tratto (statistiche del tratto nel pannello).
@@ -63,7 +64,9 @@ src/app/
     routing.service.ts   BRouter, con cache per tratto
     elevation.service.ts quote mancanti dalle tile Terrarium
     recommended-routes.service.ts  percorsi segnati (Waymarked Trails)
+    library.service.ts   "I miei percorsi" in IndexedDB
   routes-panel/          scheda "Percorsi consigliati": lista, dettaglio, "Usa come percorso"
+  library-panel/         scheda "I miei percorsi": apri, rinomina, elimina, scarica GPX
     route-store.ts       stato condiviso (signals): tappe, traccia, hover, selezione
   map-view/              MapLibre: livelli, tappe, marker di hover
   elevation-profile/     grafico uPlot sincronizzato

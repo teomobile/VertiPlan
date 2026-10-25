@@ -47,6 +47,15 @@
       font-weight: 600;
       box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
     }
+
+    .count {
+      margin-left: 2px;
+      padding: 0 5px;
+      border-radius: 8px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      font-size: 11px;
+    }
   }
 }
 
@@ -159,6 +168,10 @@ h3 {
 
   &.error {
     color: #c92a2a;
+  }
+
+  &.ok {
+    color: #2b8a3e;
   }
 }
 

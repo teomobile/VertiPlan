@@ -8,12 +8,20 @@
     Pianifica
   </button>
   <button type="button" role="tab" [class.active]="tab() === 'routes'" [attr.aria-selected]="tab() === 'routes'" (click)="tab.set('routes')">
-    Percorsi consigliati
+    Consigliati
+  </button>
+  <button type="button" role="tab" [class.active]="tab() === 'library'" [attr.aria-selected]="tab() === 'library'" (click)="tab.set('library')">
+    I miei percorsi
+    @if (library.items().length) {
+      <span class="count">{{ library.items().length }}</span>
+    }
   </button>
 </nav>
 
 @if (tab() === 'routes') {
   <app-routes-panel (used)="tab.set('plan')" />
+} @else if (tab() === 'library') {
+  <app-library-panel (opened)="tab.set('plan')" />
 } @else {
 <section>
   <input class="name" [value]="store.name()" (input)="store.name.set($any($event.target).value)" aria-label="Nome del percorso" />
@@ -59,6 +67,9 @@
 }
 @if (store.error(); as err) {
   <p class="status error">{{ err }}</p>
+}
+@if (store.notice(); as msg) {
+  <p class="status ok">✓ {{ msg }}</p>
 }
 
 @if (store.mode() === 'plan') {
@@ -115,8 +126,11 @@
 </section>
 
 <section class="actions gpx">
-  <button type="button" class="primary" (click)="file.click()">Importa GPX</button>
-  <button type="button" class="primary" (click)="store.exportGpx()" [disabled]="store.track().length < 2">Esporta GPX</button>
+  <button type="button" class="primary" (click)="store.saveCurrent()" [disabled]="store.track().length < 2">
+    {{ store.savedId() ? 'Aggiorna salvato' : 'Salva' }}
+  </button>
+  <button type="button" (click)="file.click()">Importa GPX</button>
+  <button type="button" (click)="store.exportGpx()" [disabled]="store.track().length < 2">Esporta GPX</button>
   <input #file type="file" accept=".gpx,application/gpx+xml" hidden (change)="onFile(file)" />
 </section>
 }

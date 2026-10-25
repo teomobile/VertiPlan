@@ -5,10 +5,12 @@ import { RouteStore } from '../core/route-store';
 import { ROUTING_PROFILES, RoutingProfile } from '../core/routing.service';
 import { PlaceSearch } from '../place-search/place-search';
 import { RoutesPanel } from '../routes-panel/routes-panel';
+import { LibraryPanel } from '../library-panel/library-panel';
+import { LibraryService } from '../core/library.service';
 
 @Component({
   selector: 'app-sidebar',
-  imports: [PlaceSearch, RoutesPanel],
+  imports: [PlaceSearch, RoutesPanel, LibraryPanel],
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.scss',
 })
@@ -18,7 +20,8 @@ export class Sidebar {
   protected readonly formatDuration = formatDuration;
   /** Indice della tappa che si sta sostituendo con una ricerca. */
   protected readonly editing = signal<number | null>(null);
-  protected readonly tab = signal<'plan' | 'routes'>('plan');
+  protected readonly tab = signal<'plan' | 'routes' | 'library'>('plan');
+  protected library = inject(LibraryService);
 
   protected onProfile(value: string): void {
     this.store.profile.set(value as RoutingProfile);

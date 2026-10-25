@@ -82,7 +82,7 @@ export class RoutesPanel implements OnDestroy {
     const name = d.ref && !d.name.includes(d.ref) ? `${d.ref} · ${d.name}` : d.name;
     this.store.recommended.set(null);
     this.used.emit();
-    await this.store.loadTrack(name, d.path);
+    await this.store.loadTrack(name, d.path, 'recommended');
   }
 
   private async load(): Promise<void> {

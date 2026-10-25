@@ -1,0 +1,64 @@
+@if (library.items().length > 4) {
+  <input
+    class="filter"
+    type="search"
+    placeholder="Cerca tra i tuoi percorsi"
+    [value]="filter()"
+    (input)="filter.set($any($event.target).value)"
+    aria-label="Cerca tra i percorsi salvati"
+  />
+}
+
+@if (library.error(); as err) {
+  <p class="status error">{{ err }}</p>
+}
+
+<ul>
+  @for (item of visible(); track item.id) {
+    <li [class.current]="store.savedId() === item.id">
+      @if (renaming() === item.id) {
+        <input
+          #nameInput
+          class="rename"
+          [value]="item.name"
+          (keydown.enter)="rename(item, nameInput.value)"
+          (keydown.escape)="renaming.set(null)"
+          (blur)="rename(item, nameInput.value)"
+          aria-label="Nuovo nome"
+        />
+      } @else {
+        <button type="button" class="open" (click)="open(item)" title="Apri sulla mappa">
+          <span class="name">{{ item.name }}</span>
+          <span class="meta">
+            {{ item.distanceKm.toFixed(1) }} km · ↗ {{ item.ascent.toFixed(0) }} m · {{ formatDuration(item.durationMin) }}
+          </span>
+          <small>{{ originLabels[item.origin] }} · {{ date(item.updatedAt) }}</small>
+        </button>
+      }
+
+      @if (confirmDelete() === item.id) {
+        <div class="confirm">
+          <span>Eliminare?</span>
+          <button type="button" class="danger" (click)="remove(item)">Elimina</button>
+          <button type="button" (click)="confirmDelete.set(null)">No</button>
+        </div>
+      } @else {
+        <div class="actions">
+          <button type="button" class="icon" (click)="renaming.set(item.id)" title="Rinomina">✎</button>
+          <button type="button" class="icon" (click)="exportGpx(item)" title="Scarica GPX">⤓</button>
+          <button type="button" class="icon danger" (click)="confirmDelete.set(item.id)" title="Elimina">✕</button>
+        </div>
+      }
+    </li>
+  } @empty {
+    <li class="empty">
+      @if (filter()) {
+        Nessun percorso con questo nome.
+      } @else {
+        Qui finiscono i GPX che importi e i percorsi che salvi con "Salva". Restano in questo browser, anche offline.
+      }
+    </li>
+  }
+</ul>
+
+<p class="note">I percorsi sono salvati solo in questo browser: non sono sincronizzati tra dispositivi.</p>

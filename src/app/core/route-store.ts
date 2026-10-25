@@ -1,6 +1,7 @@
 import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { ElevationService } from './elevation.service';
 import { GeocodingService } from './geocoding.service';
+import { LibraryService, SavedOrigin } from './library.service';
 import { Bounds, RouteDetails } from './recommended-routes.service';
 import { buildTrack, computeStats, LngLat, sliceTrack, TrackPoint, Waypoint } from './geo';
 import { buildGpx, downloadText, parseGpx } from './gpx';
@@ -25,6 +26,7 @@ interface Saved {
   name: string;
   profile: RoutingProfile;
   waypoints: Waypoint[];
+  savedId?: string | null;
 }
 
 /** Stato condiviso tra mappa, profilo altimetrico e pannello laterale. */
@@ -33,6 +35,7 @@ export class RouteStore {
   private routing = inject(RoutingService);
   private elevation = inject(ElevationService);
   private geocoding = inject(GeocodingService);
+  private library = inject(LibraryService);
 
   readonly mode = signal<RouteMode>('plan');
   readonly name = signal('Nuovo percorso');
@@ -41,6 +44,11 @@ export class RouteStore {
   readonly track = signal<TrackPoint[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  /** Messaggio informativo (es. "Salvato"). */
+  readonly notice = signal<string | null>(null);
+  /** Id nella libreria del percorso aperto, se è salvato. */
+  readonly savedId = signal<string | null>(null);
+  private origin: SavedOrigin = 'plan';
 
   readonly hover = signal<Hover | null>(null);
   readonly selection = signal<Range | null>(null);
@@ -78,7 +86,12 @@ export class RouteStore {
 
     effect(() => {
       if (this.mode() !== 'plan') return;
-      const saved: Saved = { name: this.name(), profile: this.profile(), waypoints: this.waypoints() };
+      const saved: Saved = {
+        name: this.name(),
+        profile: this.profile(),
+        waypoints: this.waypoints(),
+        savedId: this.savedId(),
+      };
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
       } catch {
@@ -137,6 +150,8 @@ export class RouteStore {
 
   clear(): void {
     this.mode.set('plan');
+    this.origin = 'plan';
+    this.savedId.set(null);
     this.name.set('Nuovo percorso');
     this.waypoints.set([]);
     this.track.set([]);
@@ -147,18 +162,27 @@ export class RouteStore {
 
   // --- GPX ---------------------------------------------------------------
 
+  /** Importa un GPX e lo salva subito nella libreria (se non c'è già). */
   async importGpx(file: File): Promise<void> {
     try {
       const parsed = parseGpx(await file.text(), file.name.replace(/\.gpx$/i, ''));
-      await this.loadTrack(parsed.name, parsed.coords);
+      await this.loadTrack(parsed.name, parsed.coords, 'gpx');
+      const dup = this.library.findDuplicate(parsed.name, this.stats().distanceKm);
+      if (dup) {
+        this.savedId.set(dup.id);
+        this.notice.set('Già presente in "I miei percorsi"');
+      } else {
+        await this.saveCurrent();
+      }
     } catch (e) {
       this.error.set((e as Error).message);
     }
   }
 
   /** Carica una traccia non modificabile (GPX, percorso consigliato), completando le quote mancanti. */
-  async loadTrack(name: string, raw: number[][]): Promise<void> {
+  async loadTrack(name: string, raw: number[][], origin: SavedOrigin): Promise<void> {
     this.error.set(null);
+    this.notice.set(null);
     this.loading.set(true);
     try {
       const coords = await this.elevation.fill(raw).catch((e) => {
@@ -166,6 +190,8 @@ export class RouteStore {
         return raw;
       });
       this.mode.set('track');
+      this.origin = origin;
+      this.savedId.set(null);
       this.waypoints.set([]);
       this.name.set(name);
       this.setTrack(coords);
@@ -184,8 +210,69 @@ export class RouteStore {
 
   // --- interni -----------------------------------------------------------
 
+  // --- libreria ----------------------------------------------------------
+
+  /** Salva il percorso corrente in "I miei percorsi"; se era già salvato lo aggiorna. */
+  async saveCurrent(): Promise<void> {
+    const track = this.track();
+    if (track.length < 2) return;
+    const s = this.stats();
+    const now = Date.now();
+    const id = this.savedId() ?? crypto.randomUUID();
+    const existing = this.savedId() ? await this.library.get(id) : undefined;
+    const isPlan = this.mode() === 'plan';
+    try {
+      await this.library.save({
+        id,
+        name: this.name().trim() || 'Percorso senza nome',
+        origin: isPlan ? 'plan' : this.origin,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+        distanceKm: s.distanceKm,
+        ascent: s.ascent,
+        descent: s.descent,
+        durationMin: s.durationMin,
+        coords: track.map((p) => [p.lon, p.lat, p.ele ?? NaN]),
+        waypoints: isPlan ? this.waypoints() : undefined,
+        profile: isPlan ? this.profile() : undefined,
+      });
+      this.savedId.set(id);
+      this.notice.set(existing ? 'Percorso aggiornato' : 'Salvato in "I miei percorsi"');
+    } catch (e) {
+      this.error.set(`Salvataggio non riuscito: ${(e as Error).message}`);
+    }
+  }
+
+  /** Riapre un percorso salvato: i pianificati tornano modificabili, le tracce no. */
+  async openSaved(id: string): Promise<void> {
+    const r = await this.library.get(id);
+    if (!r) return;
+    this.error.set(null);
+    this.notice.set(null);
+    this.name.set(r.name);
+    this.origin = r.origin;
+    if (r.waypoints?.length) {
+      this.mode.set('plan');
+      if (r.profile) this.profile.set(r.profile);
+      this.track.set([]);
+      // il percorso viene ricalcolato dalle tappe (i tratti sono in cache se già visti)
+      this.waypoints.set(r.waypoints);
+    } else {
+      this.mode.set('track');
+      this.waypoints.set([]);
+      this.setTrack(r.coords);
+    }
+    this.savedId.set(id);
+    // inquadro dalle coordinate salvate: per i pianificati la traccia arriva dopo il ricalcolo
+    const lons = r.coords.map((c) => c[0]);
+    const lats = r.coords.map((c) => c[1]);
+    this.fitBoundsRequest.set([Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]);
+  }
+
   private ensurePlanMode(): void {
     if (this.mode() === 'plan') return;
+    this.savedId.set(null);
+    this.origin = 'plan';
     this.mode.set('plan');
     this.name.set('Nuovo percorso');
     this.track.set([]);
@@ -214,6 +301,7 @@ export class RouteStore {
 
     this.loading.set(true);
     this.error.set(null);
+    this.notice.set(null);
     let failed = 0;
     const segments = await Promise.all(
       wps.slice(1).map((b, i) =>
@@ -241,6 +329,7 @@ export class RouteStore {
       this.name.set(saved.name);
       this.profile.set(saved.profile);
       this.waypoints.set(saved.waypoints ?? []);
+      this.savedId.set(saved.savedId ?? null);
     } catch {
       /* dati salvati illeggibili: si riparte da zero */
     }
