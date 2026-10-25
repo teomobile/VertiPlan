@@ -23,6 +23,61 @@ export interface TrackStats {
   maxEle: number | null;
   /** Tempo stimato in minuti (DIN 33466). */
   durationMin: number;
+  /** Pendenza massima in salita e in discesa (%, positive), su tratti di almeno 100 m. */
+  maxSlopeUp: number;
+  maxSlopeDown: number;
+}
+
+/** Tratto di traccia con pendenza media costante (%, negativa in discesa). */
+export interface SlopeSegment {
+  from: number;
+  to: number;
+  eleFrom: number;
+  eleTo: number;
+  slope: number;
+}
+
+/** Classi di pendenza per il profilo altimetrico, dalla più dolce. */
+export const SLOPE_CLASSES = [
+  { max: 5, color: '#9ac27a', label: '< 5%' },
+  { max: 10, color: '#f2d24b', label: '5–10%' },
+  { max: 15, color: '#f59f3a', label: '10–15%' },
+  { max: 20, color: '#e8590c', label: '15–20%' },
+  { max: 30, color: '#c92a2a', label: '20–30%' },
+  { max: Infinity, color: '#7b2a8f', label: '> 30%' },
+];
+
+export function slopeColor(slope: number): string {
+  const s = Math.abs(slope);
+  return SLOPE_CLASSES.find((c) => s < c.max)!.color;
+}
+
+/**
+ * Pendenza media su tratti regolari. Tratti di almeno 100 m: più corti seguirebbero il rumore
+ * del modello del terreno (~30 m) invece della forma del sentiero.
+ */
+export function slopeSegments(points: TrackPoint[], minBinKm = 0.1, maxBins = 300): SlopeSegment[] {
+  if (points.length < 2) return [];
+  const start = points[0].dist;
+  const total = points[points.length - 1].dist - start;
+  const n = Math.max(1, Math.round(total / Math.max(minBinKm, total / maxBins)));
+  const step = total / n;
+  const out: SlopeSegment[] = [];
+  let prev = pointAtDistance(points, start)!;
+  for (let i = 1; i <= n; i++) {
+    const cur = pointAtDistance(points, start + step * i)!;
+    if (prev.ele != null && cur.ele != null) {
+      out.push({
+        from: prev.dist,
+        to: cur.dist,
+        eleFrom: prev.ele,
+        eleTo: cur.ele,
+        slope: ((cur.ele - prev.ele) / (step * 1000)) * 100,
+      });
+    }
+    prev = cur;
+  }
+  return out;
 }
 
 const EARTH_RADIUS_KM = 6371.0088;
@@ -124,7 +179,17 @@ export function computeStats(points: TrackPoint[], hysteresisM = 5): TrackStats 
   const vertical = ascent / 300 + descent / 500;
   const hours = Math.max(horizontal, vertical) + Math.min(horizontal, vertical) / 2;
 
-  return { distanceKm, ascent, descent, minEle, maxEle, durationMin: Math.round(hours * 60) };
+  const slopes = slopeSegments(points).map((s) => s.slope);
+  return {
+    distanceKm,
+    ascent,
+    descent,
+    minEle,
+    maxEle,
+    durationMin: Math.round(hours * 60),
+    maxSlopeUp: Math.max(0, ...slopes),
+    maxSlopeDown: Math.max(0, ...slopes.map((s) => -s)),
+  };
 }
 
 export function formatDuration(min: number): string {

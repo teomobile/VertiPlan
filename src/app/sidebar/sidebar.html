@@ -47,6 +47,8 @@
   <div><small>Discesa</small><b>↘ {{ store.stats().descent.toFixed(0) }} m</b></div>
   <div><small>Quota min</small><b>{{ store.stats().minEle?.toFixed(0) ?? '–' }} m</b></div>
   <div><small>Quota max</small><b>{{ store.stats().maxEle?.toFixed(0) ?? '–' }} m</b></div>
+  <div><small>Pendenza max salita</small><b>{{ store.stats().maxSlopeUp.toFixed(0) }}%</b></div>
+  <div><small>Pendenza max discesa</small><b>{{ store.stats().maxSlopeDown.toFixed(0) }}%</b></div>
 </section>
 
 @if (store.selectionStats(); as s) {
@@ -57,7 +59,7 @@
     </header>
     <p>
       {{ s.distanceKm.toFixed(2) }} km · ↗ {{ s.ascent.toFixed(0) }} m · ↘ {{ s.descent.toFixed(0) }} m ·
-      {{ formatDuration(s.durationMin) }}
+      {{ formatDuration(s.durationMin) }} · pendenza max {{ s.maxSlopeUp.toFixed(0) }}% / −{{ s.maxSlopeDown.toFixed(0) }}%
     </p>
   </section>
 }

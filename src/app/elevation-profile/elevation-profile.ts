@@ -1,6 +1,6 @@
 import { afterNextRender, Component, computed, effect, ElementRef, inject, OnDestroy, viewChild } from '@angular/core';
 import uPlot from 'uplot';
-import { pointAtDistance, TrackPoint } from '../core/geo';
+import { pointAtDistance, SLOPE_CLASSES, slopeColor, SlopeSegment, slopeSegments, TrackPoint } from '../core/geo';
 import { RouteStore } from '../core/route-store';
 
 /** Pendenza media (%) in una finestra di ±halfKm attorno alla distanza d. */
@@ -23,6 +23,8 @@ export class ElevationProfile implements OnDestroy {
   private resizeObserver?: ResizeObserver;
   /** true mentre muoviamo il cursore per conto della mappa: evita il rimbalzo degli eventi. */
   private syncing = false;
+  private segments: SlopeSegment[] = [];
+  protected readonly slopeClasses = SLOPE_CLASSES;
 
   protected readonly hoverInfo = computed(() => {
     const h = this.store.hover();
@@ -45,6 +47,7 @@ export class ElevationProfile implements OnDestroy {
         this.destroyPlot();
         return;
       }
+      this.segments = slopeSegments(track);
       const data: uPlot.AlignedData = [track.map((p) => p.dist), track.map((p) => p.ele)];
       if (this.plot) this.plot.setData(data);
       else this.plot = new uPlot(this.options(), data, this.chartEl().nativeElement);
@@ -75,6 +78,30 @@ export class ElevationProfile implements OnDestroy {
 
   protected clearSelection(): void {
     this.store.selection.set(null);
+  }
+
+  /** Riempie l'area sotto il profilo con il colore della pendenza di ogni tratto. */
+  private drawSlopeFill(u: uPlot): void {
+    const { ctx, bbox } = u;
+    const bottom = bbox.top + bbox.height;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bbox.left, bbox.top, bbox.width, bbox.height);
+    ctx.clip();
+    for (const s of this.segments) {
+      const x0 = u.valToPos(s.from, 'x', true);
+      const x1 = u.valToPos(s.to, 'x', true);
+      ctx.beginPath();
+      ctx.moveTo(x0, bottom);
+      ctx.lineTo(x0, u.valToPos(s.eleFrom, 'y', true));
+      ctx.lineTo(x1, u.valToPos(s.eleTo, 'y', true));
+      ctx.lineTo(x1, bottom);
+      ctx.closePath();
+      ctx.fillStyle = slopeColor(s.slope);
+      ctx.globalAlpha = 0.75;
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   private destroyPlot(): void {
@@ -113,18 +140,14 @@ export class ElevationProfile implements OnDestroy {
       series: [
         {},
         {
-          stroke: '#d9480f',
-          width: 2,
-          fill: (u) => {
-            const g = u.ctx.createLinearGradient(0, u.bbox.top, 0, u.bbox.top + u.bbox.height);
-            g.addColorStop(0, 'rgba(217,72,15,0.35)');
-            g.addColorStop(1, 'rgba(217,72,15,0.03)');
-            return g;
-          },
+          // il riempimento colorato per pendenza è disegnato in drawAxes, sotto la linea
+          stroke: '#343a40',
+          width: 1.5,
           points: { show: false },
         },
       ],
       hooks: {
+        drawAxes: [(u) => this.drawSlopeFill(u)],
         setCursor: [
           (u) => {
             if (this.syncing) return;

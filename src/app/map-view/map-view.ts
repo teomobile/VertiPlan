@@ -14,6 +14,8 @@ import {
   SatProps,
   satTooltipHtml,
 } from './sat-layer';
+import { HILLSHADE_LAYER, registerSlopeProtocol, SLOPE_LAYER, SLOPE_LEGEND, TERRAIN_SOURCES } from './terrain-layers';
+import { ElevationService } from '../core/elevation.service';
 
 type BaseLayer = 'osm' | 'otm';
 
@@ -49,6 +51,7 @@ const STYLE: StyleSpecification = {
       maxzoom: 18,
       attribution: 'Sentieri © <a href="https://hiking.waymarkedtrails.org">Waymarked Trails</a>',
     },
+    ...TERRAIN_SOURCES,
     sat: SAT_SOURCE,
     recommended: {
       type: 'geojson',
@@ -61,6 +64,8 @@ const STYLE: StyleSpecification = {
   layers: [
     { id: 'osm', type: 'raster', source: 'osm' },
     { id: 'otm', type: 'raster', source: 'otm', layout: { visibility: 'none' } },
+    HILLSHADE_LAYER,
+    SLOPE_LAYER,
     { id: 'trails', type: 'raster', source: 'trails', paint: { 'raster-opacity': 0.85 } },
     ...SAT_LAYERS,
     {
@@ -139,7 +144,13 @@ export class MapView implements OnDestroy {
   protected readonly showTrails = signal(false);
   protected readonly showSat = signal(true);
   protected readonly satLegend = SAT_DIFFICULTIES;
+  protected readonly showHillshade = signal(true);
+  protected readonly showSlope = signal(false);
+  protected readonly show3d = signal(false);
+  protected readonly slopeLegend = SLOPE_LEGEND;
+  protected readonly zoom = signal(11);
   protected readonly dragging = signal(false);
+  private elevation = inject(ElevationService);
 
   private container = viewChild.required<ElementRef<HTMLDivElement>>('map');
   private map?: MlMap;
@@ -157,15 +168,18 @@ export class MapView implements OnDestroy {
 
   constructor() {
     afterNextRender(() => {
+      registerSlopeProtocol(this.elevation);
       this.map = new maplibregl.Map({
         container: this.container().nativeElement,
         style: STYLE,
         center: START_CENTER,
         zoom: 11,
         maxZoom: 19,
+        maxPitch: 70,
         doubleClickZoom: false,
       });
-      this.map.addControl(new maplibregl.NavigationControl(), 'top-right');
+      this.map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+      this.map.on('zoomend', () => this.zoom.set(this.map!.getZoom()));
       this.map.addControl(
         new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }),
         'top-right',
@@ -219,6 +233,14 @@ export class MapView implements OnDestroy {
       this.map.flyTo({ center: [p.lon, p.lat], zoom: Math.max(this.map.getZoom(), 13) });
     });
 
+    // rilievo 3D
+    effect(() => {
+      const on = this.show3d();
+      if (!this.ready() || !this.map) return;
+      this.map.setTerrain(on ? { source: 'dem-3d', exaggeration: 1.3 } : null);
+      this.map.easeTo({ pitch: on ? 60 : 0, duration: 800 });
+    });
+
     // percorso consigliato selezionato
     effect(() => {
       const r = this.store.recommended();
@@ -251,6 +273,8 @@ export class MapView implements OnDestroy {
       for (const l of BASE_LAYERS) this.map.setLayoutProperty(l.id, 'visibility', l.id === base ? 'visible' : 'none');
       this.map.setLayoutProperty('trails', 'visibility', trails ? 'visible' : 'none');
       for (const id of SAT_LAYER_IDS) this.map.setLayoutProperty(id, 'visibility', sat ? 'visible' : 'none');
+      this.map.setLayoutProperty('hillshade', 'visibility', this.showHillshade() ? 'visible' : 'none');
+      this.map.setLayoutProperty('slope', 'visibility', this.showSlope() ? 'visible' : 'none');
       if (!sat) this.hideSatInfo();
       // i dati SAT (~1 MB compressi) si scaricano solo la prima volta che il livello è acceso
       if (sat && !this.satLoaded) {

@@ -12,6 +12,13 @@
   @if (store.selection()) {
     <button type="button" class="link" (click)="clearSelection()">Annulla selezione</button>
   }
+  @if (store.hasElevation()) {
+    <ul class="slope-legend" aria-label="Legenda pendenze">
+      @for (c of slopeClasses; track c.label) {
+        <li><i [style.background]="c.color"></i>{{ c.label }}</li>
+      }
+    </ul>
+  }
 </header>
 
 <div class="chart" #chart></div>

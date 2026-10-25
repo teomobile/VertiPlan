@@ -13,7 +13,30 @@
       <input type="checkbox" [checked]="showTrails()" (change)="showTrails.set(!showTrails())" />
       Sentieri OSM
     </label>
+    <label class="toggle">
+      <input type="checkbox" [checked]="showHillshade()" (change)="showHillshade.set(!showHillshade())" />
+      Rilievo
+    </label>
+    <label class="toggle" title="Inclinazione del terreno, per lo sci alpinismo">
+      <input type="checkbox" [checked]="showSlope()" (change)="showSlope.set(!showSlope())" />
+      Pendenze ≥ 30°
+    </label>
+    <label class="toggle">
+      <input type="checkbox" [checked]="show3d()" (change)="show3d.set(!show3d())" />
+      3D
+    </label>
   </div>
+
+  @if (showSlope()) {
+    <ul class="legend">
+      @for (s of slopeLegend; track s.label) {
+        <li><i class="box" [style.background]="s.color"></i>{{ s.label }}</li>
+      }
+      @if (zoom() < 12) {
+        <li class="hint">Avvicinati per vedere le pendenze</li>
+      }
+    </ul>
+  }
 
   @if (showSat()) {
     <ul class="legend">

@@ -9,8 +9,19 @@ const TILE_SIZE = 256;
 const MAX_ZOOM = 12;
 /** Oltre questo numero di tile (tracce di centinaia di km) si scende di zoom. */
 const MAX_TILES = 64;
+/** ~256 kB l'una decodificata: 120 tile ≈ 30 MB. */
+const MAX_CACHED = 120;
 
-interface TileKey {
+export const TERRAIN_TILE_URL = TILE_URL;
+export const TERRAIN_ATTRIBUTION =
+  'Quote © <a href="https://registry.opendata.aws/terrain-tiles/">Terrain Tiles</a> (EU-DEM, SRTM)';
+
+/** Quota in metri dal pixel RGB Terrarium. */
+export function terrariumElevation(r: number, g: number, b: number): number {
+  return r * 256 + g + b / 256 - 32768;
+}
+
+export interface TileKey {
   z: number;
   x: number;
   y: number;
@@ -56,7 +67,7 @@ export class ElevationService {
       const img = loaded.get(`${z}/${tx}/${ty}`)!;
       const i = ((y - ty * TILE_SIZE) * TILE_SIZE + (x - tx * TILE_SIZE)) * 4;
       const d = img.data;
-      return d[i] * 256 + d[i + 1] + d[i + 2] / 256 - 32768;
+      return terrariumElevation(d[i], d[i + 1], d[i + 2]);
     };
 
     return coords.map((c, k) => {
@@ -86,14 +97,19 @@ export class ElevationService {
     return 6;
   }
 
-  private tile(t: TileKey): Promise<ImageData> {
+  /** Tile di elevazione decodificata (RGBA); le ultime MAX_CACHED restano in memoria. */
+  tile(t: TileKey): Promise<ImageData> {
     const key = `${t.z}/${t.x}/${t.y}`;
     let p = this.tiles.get(key);
-    if (!p) {
+    if (p) {
+      // LRU: la sposto in fondo alla Map
+      this.tiles.delete(key);
+    } else {
       p = this.loadTile(t);
-      this.tiles.set(key, p);
       p.catch(() => this.tiles.delete(key));
     }
+    this.tiles.set(key, p);
+    if (this.tiles.size > MAX_CACHED) this.tiles.delete(this.tiles.keys().next().value!);
     return p;
   }
 

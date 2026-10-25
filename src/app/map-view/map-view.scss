@@ -51,6 +51,17 @@
     border-top: 3px solid var(--c);
   }
 
+  .box {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    opacity: 0.75;
+  }
+
+  .hint {
+    font-style: italic;
+  }
+
   .sw-EE {
     border-top-style: dashed;
   }

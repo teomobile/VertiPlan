@@ -15,6 +15,8 @@ Poi apri http://localhost:4200.
 ## Uso
 
 - **Clic sulla mappa**: aggiunge una tappa (la prima è la partenza). Trascina le tappe per spostarle, doppio clic per eliminarle.
+- **Pendenza**: il profilo altimetrico è colorato per pendenza (tratti di almeno 100 m), con pendenza massima in salita e discesa nelle statistiche e nel tratto selezionato.
+- **Terreno**: "Rilievo" (ombreggiatura), "3D" (rilievo inclinabile, trascina col tasto destro per ruotare) e "Pendenze ≥ 30°": carta dell'inclinazione del pendio per lo sci alpinismo (30–35°, 35–40°, 40–45°, > 45°), calcolata nel browser dalle Terrain Tiles con il metodo di Horn. Visibile da zoom 12. Risoluzione del modello ~30 m: i pendii ripidi ma brevi possono risultare sottostimati.
 - **I miei percorsi**: i GPX importati vengono salvati automaticamente (senza doppioni); "Salva" conserva anche i percorsi pianificati (che si riaprono modificabili) e quelli consigliati. Da qui si riaprono, rinominano, eliminano e scaricano come GPX. I dati stanno in IndexedDB, solo in questo browser.
 - **Percorsi consigliati**: nella scheda omonima trovi i percorsi segnati nella zona inquadrata. Clic per vederlo in mappa con la scheda, "Usa come percorso" per caricarlo con altimetria ed export GPX.
 - **Tappe come testo**: nel pannello scrivi un luogo (rifugio, cima, paese) o delle coordinate `lat, lon`. Clic sul nome di una tappa per sostituirla, frecce per riordinare.
@@ -69,6 +71,7 @@ src/app/
   library-panel/         scheda "I miei percorsi": apri, rinomina, elimina, scarica GPX
     route-store.ts       stato condiviso (signals): tappe, traccia, hover, selezione
   map-view/              MapLibre: livelli, tappe, marker di hover
+    terrain-layers.ts    rilievo, 3D e protocollo slope:// per la carta delle pendenze
   elevation-profile/     grafico uPlot sincronizzato
   sidebar/               statistiche, tappe, azioni
 ```
