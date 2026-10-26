@@ -1,4 +1,15 @@
-import { afterNextRender, Component, effect, ElementRef, inject, isDevMode, OnDestroy, signal, viewChild } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  effect,
+  ElementRef,
+  inject,
+  isDevMode,
+  OnDestroy,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import nearestPointOnLine from '@turf/nearest-point-on-line';
 import { lineString, point } from '@turf/helpers';
 import maplibregl, { GeoJSONSource, LngLatBounds, Map as MlMap, Marker, StyleSpecification } from 'maplibre-gl';
@@ -16,6 +27,8 @@ import {
 } from './sat-layer';
 import { HILLSHADE_LAYER, registerSlopeProtocol, SLOPE_LAYER, SLOPE_LEGEND, TERRAIN_SOURCES } from './terrain-layers';
 import { ElevationService } from '../core/elevation.service';
+import { AvalancheService, Bulletin, DANGER_LEVELS, RegionBulletin } from '../core/avalanche.service';
+import { AVALANCHE_LAYER_IDS, AVALANCHE_LAYERS, AVALANCHE_SOURCE, colorRegions } from './avalanche-layer';
 
 type BaseLayer = 'osm' | 'otm';
 
@@ -52,6 +65,7 @@ const STYLE: StyleSpecification = {
       attribution: 'Sentieri © <a href="https://hiking.waymarkedtrails.org">Waymarked Trails</a>',
     },
     ...TERRAIN_SOURCES,
+    avalanche: AVALANCHE_SOURCE,
     sat: SAT_SOURCE,
     recommended: {
       type: 'geojson',
@@ -65,6 +79,7 @@ const STYLE: StyleSpecification = {
     { id: 'osm', type: 'raster', source: 'osm' },
     { id: 'otm', type: 'raster', source: 'otm', layout: { visibility: 'none' } },
     HILLSHADE_LAYER,
+    ...AVALANCHE_LAYERS,
     SLOPE_LAYER,
     { id: 'trails', type: 'raster', source: 'trails', paint: { 'raster-opacity': 0.85 } },
     ...SAT_LAYERS,
@@ -151,6 +166,17 @@ export class MapView implements OnDestroy {
   protected readonly zoom = signal(11);
   protected readonly dragging = signal(false);
   private elevation = inject(ElevationService);
+  private avalanche = inject(AvalancheService);
+
+  protected readonly showAvalanche = signal(false);
+  /** "" = ultimo bollettino pubblicato, altrimenti "AAAA-MM-GG". */
+  protected readonly avalancheDate = signal('');
+  protected readonly bulletin = signal<Bulletin | null>(null);
+  protected readonly avalancheLoading = signal(false);
+  protected readonly avalancheError = signal<string | null>(null);
+  protected readonly hoveredRegion = signal<RegionBulletin | null>(null);
+  protected readonly dangerLevels = DANGER_LEVELS;
+  protected readonly today = new Date().toISOString().slice(0, 10);
 
   private container = viewChild.required<ElementRef<HTMLDivElement>>('map');
   private map?: MlMap;
@@ -231,6 +257,19 @@ export class MapView implements OnDestroy {
       const p = this.store.flyRequest();
       if (!p || !this.ready() || !this.map) return;
       this.map.flyTo({ center: [p.lon, p.lat], zoom: Math.max(this.map.getZoom(), 13) });
+    });
+
+    // bollettino valanghe: caricato solo con il livello acceso, e di nuovo al cambio di data
+    effect(() => {
+      const on = this.showAvalanche();
+      const date = this.avalancheDate();
+      if (!this.ready() || !this.map) return;
+      for (const id of AVALANCHE_LAYER_IDS) this.map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+      if (!on) {
+        this.hoveredRegion.set(null);
+        return;
+      }
+      untracked(() => this.loadAvalanche(date));
     });
 
     // rilievo 3D
@@ -357,6 +396,51 @@ export class MapView implements OnDestroy {
       this.satPopup.setLngLat(e.lngLat).setHTML(satTooltipHtml(props)).addTo(map);
     });
     map.on('mouseleave', 'sat-hit', () => this.hideSatInfo());
+
+    // microzona del bollettino valanghe sotto il mouse
+    map.on('mousemove', 'avalanche-fill', (e) => {
+      const id = e.features?.[0]?.properties?.['id'] as string | undefined;
+      if (!id || this.hoveredRegion()?.regionId === id) return;
+      this.hoveredRegion.set(this.bulletin()?.regions.get(id) ?? null);
+      map.setFilter('avalanche-highlight', ['==', ['get', 'id'], id]);
+    });
+    map.on('mouseleave', 'avalanche-fill', () => {
+      this.hoveredRegion.set(null);
+      map.setFilter('avalanche-highlight', ['==', ['get', 'id'], '']);
+    });
+  }
+
+  protected bulletinExpired(b: Bulletin): boolean {
+    return b.validTo.getTime() < Date.now();
+  }
+
+  protected formatDate(d: Date): string {
+    return d.toLocaleString('it-IT', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  protected dangerOf(level: number) {
+    return DANGER_LEVELS.find((d) => d.level === level);
+  }
+
+  private avalancheToken = 0;
+
+  private async loadAvalanche(date: string): Promise<void> {
+    const token = ++this.avalancheToken;
+    this.avalancheLoading.set(true);
+    this.avalancheError.set(null);
+    try {
+      const [regions, bulletin] = await Promise.all([this.avalanche.microRegions(), this.avalanche.bulletin(date || undefined)]);
+      if (token !== this.avalancheToken) return;
+      this.bulletin.set(bulletin);
+      this.source('avalanche').setData(colorRegions(regions, bulletin));
+    } catch (e) {
+      if (token !== this.avalancheToken) return;
+      this.bulletin.set(null);
+      this.source('avalanche').setData(emptyLine());
+      this.avalancheError.set((e as Error).message);
+    } finally {
+      if (token === this.avalancheToken) this.avalancheLoading.set(false);
+    }
   }
 
   private hideSatInfo(): void {

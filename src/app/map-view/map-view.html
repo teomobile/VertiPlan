@@ -25,7 +25,82 @@
       <input type="checkbox" [checked]="show3d()" (change)="show3d.set(!show3d())" />
       3D
     </label>
+    <label class="toggle" title="Bollettino valanghe Euregio: Trentino, Alto Adige, Tirolo">
+      <input type="checkbox" [checked]="showAvalanche()" (change)="showAvalanche.set(!showAvalanche())" />
+      Valanghe
+    </label>
   </div>
+
+  @if (showAvalanche()) {
+    <section class="avalanche">
+      <header>
+        <strong>Bollettino valanghe</strong>
+        <input
+          type="date"
+          [max]="today"
+          [value]="avalancheDate()"
+          (change)="avalancheDate.set($any($event.target).value)"
+          title="Vuoto = ultimo bollettino; scegli una data per l'archivio"
+        />
+        @if (avalancheDate()) {
+          <button type="button" class="link" (click)="avalancheDate.set('')">Ultimo</button>
+        }
+      </header>
+
+      @if (avalancheLoading()) {
+        <p class="muted">Caricamento…</p>
+      } @else if (avalancheError(); as err) {
+        <p class="warn">{{ err }}</p>
+      } @else if (bulletin(); as b) {
+        <p class="muted">Valido {{ formatDate(b.validFrom) }} → {{ formatDate(b.validTo) }}</p>
+        @if (bulletinExpired(b) && !avalancheDate()) {
+          <p class="warn">Nessun bollettino in corso: questo è l'ultimo pubblicato (fuori stagione).</p>
+        }
+      }
+
+      <ul class="danger-scale">
+        @for (d of dangerLevels; track d.level) {
+          <li><i [style.background]="d.color"></i>{{ d.level }} {{ d.label }}</li>
+        }
+      </ul>
+
+      @if (hoveredRegion(); as r) {
+        <div class="region">
+          <div class="region-head">
+            <span class="badge" [style.background]="dangerOf(r.maxLevel)?.color">{{ r.maxLevel || '–' }}</span>
+            <b>{{ r.name }}</b>
+          </div>
+          <ul>
+            @for (x of r.ratings; track $index) {
+              <li>
+                {{ dangerOf(x.level)?.label ?? 'n.d.' }}
+                @if (x.elevation) { · {{ x.elevation }} }
+                @if (x.period) { · {{ x.period }} }
+              </li>
+            }
+          </ul>
+          @if (r.problems.length) {
+            <ul class="problems">
+              @for (p of r.problems; track $index) {
+                <li>
+                  <b>{{ p.label }}</b>
+                  @if (p.elevation) { · {{ p.elevation }} }
+                  @if (p.aspects.length && p.aspects.length < 8) { · {{ p.aspects.join(' ') }} }
+                  @if (p.aspects.length === 8) { · tutte le esposizioni }
+                  @if (p.period) { · {{ p.period }} }
+                </li>
+              }
+            </ul>
+          }
+          @if (r.highlights) {
+            <p class="highlights">{{ r.highlights }}</p>
+          }
+        </div>
+      } @else if (bulletin()) {
+        <p class="muted">Passa sopra una zona per il dettaglio.</p>
+      }
+    </section>
+  }
 
   @if (showSlope()) {
     <ul class="legend">
