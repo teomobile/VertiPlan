@@ -3,7 +3,7 @@ import { ElevationService } from './elevation.service';
 import { GeocodingService } from './geocoding.service';
 import { LibraryService, SavedOrigin } from './library.service';
 import { Bounds, RouteDetails } from './recommended-routes.service';
-import { buildTrack, computeStats, LngLat, sliceTrack, TrackPoint, Waypoint } from './geo';
+import { buildTrack, computeStats, haversineKm, LngLat, sliceTrack, TrackPoint, Waypoint } from './geo';
 import { buildGpx, downloadText, parseGpx } from './gpx';
 import { RoutingProfile, RoutingService, straightLine } from './routing.service';
 
@@ -52,6 +52,8 @@ export class RouteStore {
 
   readonly hover = signal<Hover | null>(null);
   readonly selection = signal<Range | null>(null);
+  /** Distanza progressiva (km) alla fine di ogni tratto tra tappe, per inserire tappe intermedie. */
+  readonly legEnds = signal<number[]>([]);
   /** Incrementato quando la mappa deve inquadrare tutta la traccia. */
   readonly fitRequest = signal(0);
   /** Punto su cui centrare la mappa (es. luogo scelto dalla ricerca). */
@@ -122,6 +124,20 @@ export class RouteStore {
 
   removeWaypoint(i: number): void {
     this.waypoints.update((w) => w.filter((_, k) => k !== i));
+  }
+
+  /** Inserisce una tappa in posizione i (es. trascinando la linea del percorso). */
+  insertWaypoint(i: number, p: LngLat): void {
+    const wp: Waypoint = { lon: p.lon, lat: p.lat };
+    this.waypoints.update((w) => [...w.slice(0, i), wp, ...w.slice(i)]);
+    this.autoName(wp);
+  }
+
+  /** Indice del tratto (tra la tappa k e k+1) che contiene la distanza d. */
+  legAt(d: number): number {
+    const ends = this.legEnds();
+    const k = ends.findIndex((e) => d <= e + 1e-6);
+    return k < 0 ? ends.length - 1 : k;
   }
 
   /** Scambia una tappa con la precedente (dir -1) o la successiva (dir 1). */
@@ -318,6 +334,14 @@ export class RouteStore {
 
     if (failed) this.error.set(`${failed} tratto/i senza sentiero: uso la linea retta`);
     this.setTrack(coords);
+    // distanza progressiva alla fine di ogni tratto tra due tappe
+    let acc = 0;
+    this.legEnds.set(
+      segments.map((s) => {
+        for (let k = 1; k < s.length; k++) acc += haversineKm({ lon: s[k - 1][0], lat: s[k - 1][1] }, { lon: s[k][0], lat: s[k][1] });
+        return acc;
+      }),
+    );
     this.loading.set(false);
   }
 

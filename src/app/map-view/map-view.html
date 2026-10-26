@@ -38,22 +38,22 @@
         <input
           type="date"
           [max]="today"
-          [value]="avalancheDate()"
-          (change)="avalancheDate.set($any($event.target).value)"
+          [value]="avalanche.date()"
+          (change)="avalanche.date.set($any($event.target).value)"
           title="Vuoto = ultimo bollettino; scegli una data per l'archivio"
         />
-        @if (avalancheDate()) {
-          <button type="button" class="link" (click)="avalancheDate.set('')">Ultimo</button>
+        @if (avalanche.date()) {
+          <button type="button" class="link" (click)="avalanche.date.set('')">Ultimo</button>
         }
       </header>
 
-      @if (avalancheLoading()) {
+      @if (avalanche.loading()) {
         <p class="muted">Caricamento…</p>
-      } @else if (avalancheError(); as err) {
+      } @else if (avalanche.error(); as err) {
         <p class="warn">{{ err }}</p>
-      } @else if (bulletin(); as b) {
+      } @else if (avalanche.current(); as b) {
         <p class="muted">Valido {{ formatDate(b.validFrom) }} → {{ formatDate(b.validTo) }}</p>
-        @if (bulletinExpired(b) && !avalancheDate()) {
+        @if (bulletinExpired(b) && !avalanche.date()) {
           <p class="warn">Nessun bollettino in corso: questo è l'ultimo pubblicato (fuori stagione).</p>
         }
       }
@@ -96,7 +96,7 @@
             <p class="highlights">{{ r.highlights }}</p>
           }
         </div>
-      } @else if (bulletin()) {
+      } @else if (avalanche.current()) {
         <p class="muted">Passa sopra una zona per il dettaglio.</p>
       }
     </section>

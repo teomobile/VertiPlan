@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { effect, Injectable, signal, untracked } from '@angular/core';
 
 /**
  * Bollettino valanghe Euregio (Tirolo, Alto Adige, Trentino) in formato CAAML v6.
@@ -35,8 +35,18 @@ const PROBLEMS: Record<string, string> = {
 
 const PERIODS: Record<string, string> = { earlier: 'mattino', later: 'pomeriggio' };
 
+/**
+ * Il bollettino usa spesso "limite del bosco" come confine di quota: non ha un valore fisso,
+ * per i calcoli lungo il percorso lo stimo a 2000 m (e lo dichiaro nell'interfaccia).
+ */
+export const TREELINE_M = 2000;
+
 export interface DangerRating {
   level: number;
+  /** Limiti di quota in metri ("limite del bosco" = TREELINE_M). */
+  lower?: number;
+  upper?: number;
+  usesTreeline: boolean;
   /** Es. "sopra 2600 m", "sotto 2600 m", "" se vale per tutte le quote. */
   elevation: string;
   /** "mattino" / "pomeriggio" se il pericolo cambia nella giornata. */
@@ -79,13 +89,117 @@ function elevationText(e?: CaamlElevation): string {
   return '';
 }
 
+function indexRegion(f: GeoJSON.Feature): IndexedRegion {
+  const g = f.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+  const polygons = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+  let [w, s, e, n] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const poly of polygons) {
+    for (const [x, y] of poly[0]) {
+      w = Math.min(w, x);
+      e = Math.max(e, x);
+      s = Math.min(s, y);
+      n = Math.max(n, y);
+    }
+  }
+  return { id: f.properties?.['id'] as string, bbox: [w, s, e, n], polygons };
+}
+
+function boundMeters(v?: string): number | undefined {
+  if (!v) return undefined;
+  return v === 'treeline' ? TREELINE_M : Number(v);
+}
+
+/** Grado di pericolo a una data quota (il massimo tra mattino e pomeriggio). */
+export function levelAtElevation(r: RegionBulletin, ele: number | null): number {
+  if (ele == null) return r.maxLevel;
+  const matching = r.ratings.filter((x) => (x.lower == null || ele >= x.lower) && (x.upper == null || ele < x.upper));
+  return matching.length ? Math.max(...matching.map((x) => x.level)) : r.maxLevel;
+}
+
 export function dangerLevel(key: string): number {
   return DANGER_LEVELS.find((d) => d.key === key)?.level ?? 0;
+}
+
+/** Area coperta dal bollettino Euregio (ovest, sud, est, nord). */
+export const EUREGIO_BBOX: [number, number, number, number] = [10.0, 45.6, 13.0, 47.8];
+
+interface IndexedRegion {
+  id: string;
+  bbox: [number, number, number, number];
+  polygons: number[][][][];
+}
+
+function ringContains(ring: number[][], x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
 }
 
 @Injectable({ providedIn: 'root' })
 export class AvalancheService {
   private regions?: Promise<GeoJSON.FeatureCollection>;
+
+  // --- stato condiviso tra il layer in mappa e l'analisi del percorso ---------
+
+  /** "" = ultimo bollettino pubblicato, altrimenti "AAAA-MM-GG". */
+  readonly date = signal('');
+  readonly current = signal<Bulletin | null>(null);
+  readonly regionShapes = signal<GeoJSON.FeatureCollection | null>(null);
+  readonly loading = signal(false);
+  readonly error = signal<string | null>(null);
+  private readonly requested = signal(false);
+  private index: IndexedRegion[] = [];
+  private token = 0;
+
+  constructor() {
+    effect(() => {
+      if (!this.requested()) return;
+      const date = this.date();
+      untracked(() => this.load(date));
+    });
+  }
+
+  /** Chiede di caricare il bollettino (una volta sola; poi si ricarica al cambio di data). */
+  ensureLoaded(): void {
+    this.requested.set(true);
+  }
+
+  /** Id della microzona che contiene il punto, se le microzone sono caricate. */
+  regionAt(lon: number, lat: number): string | null {
+    for (const r of this.index) {
+      const [w, s, e, n] = r.bbox;
+      if (lon < w || lon > e || lat < s || lat > n) continue;
+      for (const poly of r.polygons) {
+        if (ringContains(poly[0], lon, lat) && !poly.slice(1).some((hole) => ringContains(hole, lon, lat))) return r.id;
+      }
+    }
+    return null;
+  }
+
+  private async load(date: string): Promise<void> {
+    const token = ++this.token;
+    this.loading.set(true);
+    this.error.set(null);
+    try {
+      const [shapes, bulletin] = await Promise.all([this.microRegions(), this.bulletin(date || undefined)]);
+      if (token !== this.token) return;
+      if (this.regionShapes() !== shapes) {
+        this.index = shapes.features.map((f) => indexRegion(f));
+        this.regionShapes.set(shapes);
+      }
+      this.current.set(bulletin);
+    } catch (e) {
+      if (token !== this.token) return;
+      this.current.set(null);
+      this.error.set((e as Error).message);
+    } finally {
+      if (token === this.token) this.loading.set(false);
+    }
+  }
 
   /** date: "AAAA-MM-GG" per un bollettino archiviato, altrimenti l'ultimo pubblicato. */
   async bulletin(date?: string): Promise<Bulletin> {
@@ -107,6 +221,9 @@ export class AvalancheService {
       const ratings: DangerRating[] = (b.dangerRatings ?? []).map(
         (r: { mainValue: string; elevation?: CaamlElevation; validTimePeriod?: string }) => ({
           level: dangerLevel(r.mainValue),
+          lower: boundMeters(r.elevation?.lowerBound),
+          upper: boundMeters(r.elevation?.upperBound),
+          usesTreeline: r.elevation?.lowerBound === 'treeline' || r.elevation?.upperBound === 'treeline',
           elevation: elevationText(r.elevation),
           period: PERIODS[r.validTimePeriod ?? ''] ?? '',
         }),

@@ -1,6 +1,15 @@
 import { afterNextRender, Component, computed, effect, ElementRef, inject, OnDestroy, viewChild } from '@angular/core';
 import uPlot from 'uplot';
-import { pointAtDistance, SLOPE_CLASSES, slopeColor, SlopeSegment, slopeSegments, TrackPoint } from '../core/geo';
+import {
+  pointAtDistance,
+  slopeAngleClass,
+  SLOPE_CLASSES,
+  slopeColor,
+  SlopeSegment,
+  slopeSegments,
+  TrackPoint,
+} from '../core/geo';
+import { RouteAnalysisService } from '../core/route-analysis.service';
 import { RouteStore } from '../core/route-store';
 
 /** Pendenza media (%) in una finestra di ±halfKm attorno alla distanza d. */
@@ -18,6 +27,7 @@ function slopeAt(points: TrackPoint[], d: number, halfKm = 0.05): number | null 
 })
 export class ElevationProfile implements OnDestroy {
   protected store = inject(RouteStore);
+  protected analysis = inject(RouteAnalysisService);
   private chartEl = viewChild.required<ElementRef<HTMLDivElement>>('chart');
   private plot?: uPlot;
   private resizeObserver?: ResizeObserver;
@@ -31,7 +41,15 @@ export class ElevationProfile implements OnDestroy {
     const track = this.store.track();
     const p = h ? pointAtDistance(track, h.dist) : null;
     if (!p) return null;
-    return { dist: p.dist, ele: p.ele, slope: slopeAt(track, p.dist) };
+    // inclinazione del pendio nel campione più vicino (ogni ~25 m)
+    const samples = this.analysis.samples();
+    let terrainDeg: number | null = null;
+    if (samples.length) {
+      const step = (samples[samples.length - 1].dist - samples[0].dist) / (samples.length - 1 || 1);
+      const i = Math.round((p.dist - samples[0].dist) / step);
+      terrainDeg = samples[Math.max(0, Math.min(samples.length - 1, i))].deg;
+    }
+    return { dist: p.dist, ele: p.ele, slope: slopeAt(track, p.dist), terrainDeg };
   });
 
   constructor() {
@@ -51,6 +69,12 @@ export class ElevationProfile implements OnDestroy {
       const data: uPlot.AlignedData = [track.map((p) => p.dist), track.map((p) => p.ele)];
       if (this.plot) this.plot.setData(data);
       else this.plot = new uPlot(this.options(), data, this.chartEl().nativeElement);
+    });
+
+    // ridisegno quando arriva l'analisi del terreno
+    effect(() => {
+      this.analysis.samples();
+      this.plot?.redraw(false);
     });
 
     // cursore spostato dalla mappa
@@ -100,6 +124,19 @@ export class ElevationProfile implements OnDestroy {
       ctx.fillStyle = slopeColor(s.slope);
       ctx.globalAlpha = 0.75;
       ctx.fill();
+    }
+
+    // striscia in basso: inclinazione del pendio attraversato (≥ 30°), come la carta delle pendenze
+    const samples = this.analysis.samples();
+    const band = 7 * devicePixelRatio;
+    ctx.globalAlpha = 1;
+    for (let i = 1; i < samples.length; i++) {
+      const cls = slopeAngleClass(samples[i].deg);
+      if (!cls) continue;
+      const x0 = u.valToPos(samples[i - 1].dist, 'x', true);
+      const x1 = u.valToPos(samples[i].dist, 'x', true);
+      ctx.fillStyle = cls.color;
+      ctx.fillRect(x0, bottom - band, Math.max(1, x1 - x0), band);
     }
     ctx.restore();
   }

@@ -51,6 +51,56 @@
   <div><small>Pendenza max discesa</small><b>{{ store.stats().maxSlopeDown.toFixed(0) }}%</b></div>
 </section>
 
+@if (analysis.samples().length) {
+  <section class="terrain">
+    <h3>Terreno e valanghe</h3>
+    <p>
+      Pendio più ripido attraversato: <b>{{ analysis.maxDeg().toFixed(0) }}°</b>
+    </p>
+    <ul class="steep">
+      @for (k of analysis.kmAbove(); track k.min) {
+        <li [class.zero]="k.km < 0.01">
+          <i [style.background]="k.color"></i>≥ {{ k.min }}°
+          <b>{{ k.km < 0.01 ? '–' : k.km < 1 ? (k.km * 1000).toFixed(0) + ' m' : k.km.toFixed(1) + ' km' }}</b>
+        </li>
+      }
+    </ul>
+
+    @if (analysis.inEuregio()) {
+      @if (analysis.danger(); as d) {
+        @if (avalanche.current(); as b) {
+          <p class="bulletin" [class.expired]="b.validTo.getTime() < now">
+            Bollettino Euregio valido fino al {{ b.validTo.toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }}
+            @if (b.validTo.getTime() < now) { — scaduto, non riferito a oggi }
+          </p>
+        }
+        <ul class="zones">
+          @for (z of d.zones; track z.regionId) {
+            <li>
+              <span class="level" [style.background]="dangerOf(z.level)?.color">{{ z.level || '–' }}</span>
+              <span class="zone">
+                {{ z.name }}
+                <small>
+                  {{ dangerOf(z.level)?.label ?? 'n.d.' }} · {{ z.km.toFixed(1) }} km
+                  @if (z.minEle != null) { · {{ z.minEle.toFixed(0) }}–{{ z.maxEle!.toFixed(0) }} m }
+                </small>
+              </span>
+            </li>
+          }
+        </ul>
+        @if (d.usesTreeline) {
+          <p class="note">Il bollettino usa il "limite del bosco": per il calcolo è stimato a {{ analysis.treelineM }} m.</p>
+        }
+      } @else if (avalanche.loading()) {
+        <p class="note">Carico il bollettino valanghe…</p>
+      } @else if (avalanche.error(); as err) {
+        <p class="note">Bollettino valanghe non disponibile: {{ err }}</p>
+      }
+    }
+    <p class="note">Indicativo, dai dati del terreno (~30 m) e del bollettino: non sostituisce la valutazione sul posto.</p>
+  </section>
+}
+
 @if (store.selectionStats(); as s) {
   <section class="selection">
     <header>

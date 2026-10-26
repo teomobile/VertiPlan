@@ -47,6 +47,21 @@ export const SLOPE_CLASSES = [
   { max: Infinity, color: '#7b2a8f', label: '> 30%' },
 ];
 
+/** Classi di inclinazione del terreno (gradi), come nelle carte per lo sci alpinismo. */
+export const SLOPE_ANGLE_CLASSES = [
+  { min: 30, label: '30–35°', rgb: [255, 212, 59], color: 'rgb(255,212,59)' },
+  { min: 35, label: '35–40°', rgb: [253, 126, 20], color: 'rgb(253,126,20)' },
+  { min: 40, label: '40–45°', rgb: [224, 49, 49], color: 'rgb(224,49,49)' },
+  { min: 45, label: '> 45°', rgb: [134, 46, 156], color: 'rgb(134,46,156)' },
+];
+
+/** Classe di inclinazione del terreno, o undefined sotto i 30°. */
+export function slopeAngleClass(deg: number) {
+  let cls: (typeof SLOPE_ANGLE_CLASSES)[number] | undefined;
+  for (const c of SLOPE_ANGLE_CLASSES) if (deg >= c.min) cls = c;
+  return cls;
+}
+
 export function slopeColor(slope: number): string {
   const s = Math.abs(slope);
   return SLOPE_CLASSES.find((c) => s < c.max)!.color;

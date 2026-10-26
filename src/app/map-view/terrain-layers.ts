@@ -5,6 +5,7 @@ import {
   TERRAIN_TILE_URL,
   terrariumElevation,
 } from '../core/elevation.service';
+import { SLOPE_ANGLE_CLASSES } from '../core/geo';
 
 const TILE = 256;
 
@@ -52,16 +53,7 @@ export const SLOPE_LAYER: LayerSpecification = {
   paint: { 'raster-opacity': 0.6, 'raster-resampling': 'linear' },
 };
 
-/** Classi di inclinazione del pendio, come nelle carte per lo sci alpinismo. */
-export const SLOPE_ANGLE_CLASSES = [
-  { min: 30, label: '30–35°', rgb: [255, 212, 59] },
-  { min: 35, label: '35–40°', rgb: [253, 126, 20] },
-  { min: 40, label: '40–45°', rgb: [224, 49, 49] },
-  { min: 45, label: '> 45°', rgb: [134, 46, 156] },
-];
-
-const css = ([r, g, b]: number[]) => `rgb(${r},${g},${b})`;
-export const SLOPE_LEGEND = SLOPE_ANGLE_CLASSES.map((c) => ({ label: c.label, color: css(c.rgb) }));
+export const SLOPE_LEGEND = SLOPE_ANGLE_CLASSES.map((c) => ({ label: c.label, color: c.color }));
 
 let registered = false;
 

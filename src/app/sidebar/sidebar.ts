@@ -7,6 +7,8 @@ import { PlaceSearch } from '../place-search/place-search';
 import { RoutesPanel } from '../routes-panel/routes-panel';
 import { LibraryPanel } from '../library-panel/library-panel';
 import { LibraryService } from '../core/library.service';
+import { RouteAnalysisService } from '../core/route-analysis.service';
+import { AvalancheService, DANGER_LEVELS } from '../core/avalanche.service';
 
 @Component({
   selector: 'app-sidebar',
@@ -22,6 +24,13 @@ export class Sidebar {
   protected readonly editing = signal<number | null>(null);
   protected readonly tab = signal<'plan' | 'routes' | 'library'>('plan');
   protected library = inject(LibraryService);
+  protected analysis = inject(RouteAnalysisService);
+  protected avalanche = inject(AvalancheService);
+  protected readonly now = Date.now();
+
+  protected dangerOf(level: number) {
+    return DANGER_LEVELS.find((d) => d.level === level);
+  }
 
   protected onProfile(value: string): void {
     this.store.profile.set(value as RoutingProfile);

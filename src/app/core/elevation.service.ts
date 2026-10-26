@@ -47,28 +47,7 @@ export class ElevationService {
 
     const z = this.chooseZoom(coords);
     const pixels = coords.map((c) => worldPixel(c[0], c[1], z));
-    const keys = new Map<string, TileKey>();
-    for (const [px, py] of pixels) {
-      // anche le tile a destra e sotto, per l'interpolazione sui bordi
-      for (const dx of [0, 1]) {
-        for (const dy of [0, 1]) {
-          const x = Math.floor((px + dx) / TILE_SIZE);
-          const y = Math.floor((py + dy) / TILE_SIZE);
-          keys.set(`${z}/${x}/${y}`, { z, x, y });
-        }
-      }
-    }
-    const loaded = new Map<string, ImageData>();
-    await Promise.all([...keys].map(async ([k, t]) => loaded.set(k, await this.tile(t))));
-
-    const sample = (x: number, y: number): number => {
-      const tx = Math.floor(x / TILE_SIZE);
-      const ty = Math.floor(y / TILE_SIZE);
-      const img = loaded.get(`${z}/${tx}/${ty}`)!;
-      const i = ((y - ty * TILE_SIZE) * TILE_SIZE + (x - tx * TILE_SIZE)) * 4;
-      const d = img.data;
-      return terrariumElevation(d[i], d[i + 1], d[i + 2]);
-    };
+    const sample = await this.sampler(pixels, z);
 
     return coords.map((c, k) => {
       if (c.length > 2 && Number.isFinite(c[2])) return c;
@@ -82,6 +61,54 @@ export class ElevationService {
       const bottom = sample(x0, y0 + 1) * (1 - fx) + sample(x0 + 1, y0 + 1) * fx;
       return [c[0], c[1], Math.round((top * (1 - fy) + bottom * fy) * 10) / 10];
     });
+  }
+
+  /**
+   * Inclinazione del terreno (gradi) nei punti dati: metodo di Horn su finestra 3×3,
+   * come la carta delle pendenze. Non è la pendenza del sentiero, ma quella del pendio attraversato.
+   */
+  async terrainSlopes(coords: number[][]): Promise<number[]> {
+    if (!coords.length) return [];
+    const z = this.chooseZoom(coords);
+    const pixels = coords.map((c) => worldPixel(c[0], c[1], z));
+    const sample = await this.sampler(pixels, z);
+
+    return coords.map((c, k) => {
+      const px = Math.floor(pixels[k][0]);
+      const py = Math.floor(pixels[k][1]);
+      const cell = (40075016.686 * Math.cos((c[1] * Math.PI) / 180)) / (TILE_SIZE * 2 ** z);
+      const e = (dx: number, dy: number) => sample(px + dx, py + dy);
+      const dzdx = (e(1, -1) + 2 * e(1, 0) + e(1, 1) - (e(-1, -1) + 2 * e(-1, 0) + e(-1, 1))) / (8 * cell);
+      const dzdy = (e(-1, 1) + 2 * e(0, 1) + e(1, 1) - (e(-1, -1) + 2 * e(0, -1) + e(1, -1))) / (8 * cell);
+      return (Math.atan(Math.hypot(dzdx, dzdy)) * 180) / Math.PI;
+    });
+  }
+
+  /**
+   * Carica le tile che coprono i pixel dati (più un pixel di margine in ogni direzione, per
+   * interpolazione e finestre 3×3) e restituisce una funzione quota(x, y) in pixel del mondo.
+   */
+  private async sampler(pixels: [number, number][], z: number): Promise<(x: number, y: number) => number> {
+    const keys = new Map<string, TileKey>();
+    for (const [px, py] of pixels) {
+      for (const dx of [-1, 0, 1]) {
+        for (const dy of [-1, 0, 1]) {
+          const x = Math.floor((px + dx) / TILE_SIZE);
+          const y = Math.floor((py + dy) / TILE_SIZE);
+          keys.set(`${x}/${y}`, { z, x, y });
+        }
+      }
+    }
+    const loaded = new Map<string, ImageData>();
+    await Promise.all([...keys].map(async ([k, t]) => loaded.set(k, await this.tile(t))));
+
+    return (x: number, y: number) => {
+      const tx = Math.floor(x / TILE_SIZE);
+      const ty = Math.floor(y / TILE_SIZE);
+      const d = loaded.get(`${tx}/${ty}`)!.data;
+      const i = ((y - ty * TILE_SIZE) * TILE_SIZE + (x - tx * TILE_SIZE)) * 4;
+      return terrariumElevation(d[i], d[i + 1], d[i + 2]);
+    };
   }
 
   private chooseZoom(coords: number[][]): number {

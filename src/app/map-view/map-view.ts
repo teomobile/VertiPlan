@@ -13,7 +13,8 @@ import {
 import nearestPointOnLine from '@turf/nearest-point-on-line';
 import { lineString, point } from '@turf/helpers';
 import maplibregl, { GeoJSONSource, LngLatBounds, Map as MlMap, Marker, StyleSpecification } from 'maplibre-gl';
-import { pointAtDistance, sliceTrack, TrackPoint, Waypoint } from '../core/geo';
+import { pointAtDistance, sliceTrack, slopeAngleClass, TrackPoint, Waypoint } from '../core/geo';
+import { RouteAnalysisService } from '../core/route-analysis.service';
 import { RouteStore } from '../core/route-store';
 import {
   GLYPHS_URL,
@@ -74,6 +75,8 @@ const STYLE: StyleSpecification = {
     },
     route: { type: 'geojson', data: emptyLine() },
     selection: { type: 'geojson', data: emptyLine() },
+    'drag-preview': { type: 'geojson', data: emptyLine() },
+    'route-steep': { type: 'geojson', data: emptyLine() },
   },
   layers: [
     { id: 'osm', type: 'raster', source: 'osm' },
@@ -97,6 +100,14 @@ const STYLE: StyleSpecification = {
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: { 'line-color': '#1971c2', 'line-width': 5, 'line-opacity': 0.85 },
     },
+    // alone attorno ai tratti del percorso su pendii ≥ 30°
+    {
+      id: 'route-steep',
+      type: 'line',
+      source: 'route-steep',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': ['get', 'color'], 'line-width': 14, 'line-opacity': 0.85 },
+    },
     {
       id: 'route-casing',
       type: 'line',
@@ -117,6 +128,13 @@ const STYLE: StyleSpecification = {
       source: 'selection',
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: { 'line-color': '#1864ab', 'line-width': 6 },
+    },
+    {
+      id: 'drag-preview',
+      type: 'line',
+      source: 'drag-preview',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': '#d9480f', 'line-width': 3, 'line-dasharray': [2, 1.5] },
     },
     // linea invisibile e larga: rende facile "agganciare" il percorso col mouse
     {
@@ -166,14 +184,10 @@ export class MapView implements OnDestroy {
   protected readonly zoom = signal(11);
   protected readonly dragging = signal(false);
   private elevation = inject(ElevationService);
-  private avalanche = inject(AvalancheService);
+  protected avalanche = inject(AvalancheService);
+  private analysis = inject(RouteAnalysisService);
 
   protected readonly showAvalanche = signal(false);
-  /** "" = ultimo bollettino pubblicato, altrimenti "AAAA-MM-GG". */
-  protected readonly avalancheDate = signal('');
-  protected readonly bulletin = signal<Bulletin | null>(null);
-  protected readonly avalancheLoading = signal(false);
-  protected readonly avalancheError = signal<string | null>(null);
   protected readonly hoveredRegion = signal<RegionBulletin | null>(null);
   protected readonly dangerLevels = DANGER_LEVELS;
   protected readonly today = new Date().toISOString().slice(0, 10);
@@ -184,6 +198,8 @@ export class MapView implements OnDestroy {
   private waypointMarkers: Marker[] = [];
   private hoverMarker?: Marker;
   private satLoaded = false;
+  /** Trascinamento in corso della linea del percorso (tratto tra la tappa leg e leg+1). */
+  private drag: { leg: number; moved: boolean } | null = null;
   private satPopup = new maplibregl.Popup({
     closeButton: false,
     closeOnClick: false,
@@ -224,6 +240,32 @@ export class MapView implements OnDestroy {
       this.source('route').setData(toLine(track));
     });
 
+    // tratti su terreno ripido, raggruppati per classe di inclinazione
+    effect(() => {
+      const samples = this.analysis.samples();
+      if (!this.ready()) return;
+      const features: GeoJSON.Feature[] = [];
+      let run: number[][] = [];
+      let color: string | undefined;
+      const flush = () => {
+        if (run.length > 1 && color) {
+          features.push({ type: 'Feature', properties: { color }, geometry: { type: 'LineString', coordinates: run } });
+        }
+      };
+      samples.forEach((s, i) => {
+        const c = slopeAngleClass(s.deg)?.color;
+        if (c !== color) {
+          flush();
+          // riparto dal punto precedente, così i tratti si toccano senza buchi
+          run = i && c ? [[samples[i - 1].lon, samples[i - 1].lat]] : [];
+          color = c;
+        }
+        if (c) run.push([s.lon, s.lat]);
+      });
+      flush();
+      this.source('route-steep').setData({ type: 'FeatureCollection', features });
+    });
+
     // tratto selezionato sul profilo
     effect(() => {
       const sel = this.store.selection();
@@ -259,17 +301,20 @@ export class MapView implements OnDestroy {
       this.map.flyTo({ center: [p.lon, p.lat], zoom: Math.max(this.map.getZoom(), 13) });
     });
 
-    // bollettino valanghe: caricato solo con il livello acceso, e di nuovo al cambio di data
+    // bollettino valanghe: caricato la prima volta che il livello viene acceso
     effect(() => {
       const on = this.showAvalanche();
-      const date = this.avalancheDate();
       if (!this.ready() || !this.map) return;
       for (const id of AVALANCHE_LAYER_IDS) this.map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
-      if (!on) {
-        this.hoveredRegion.set(null);
-        return;
-      }
-      untracked(() => this.loadAvalanche(date));
+      if (on) this.avalanche.ensureLoaded();
+      else this.hoveredRegion.set(null);
+    });
+
+    effect(() => {
+      const bulletin = this.avalanche.current();
+      const shapes = this.avalanche.regionShapes();
+      if (!this.ready()) return;
+      this.source('avalanche').setData(bulletin && shapes ? colorRegions(shapes, bulletin) : emptyLine());
     });
 
     // rilievo 3D
@@ -365,22 +410,66 @@ export class MapView implements OnDestroy {
 
     map.on('click', (e) => {
       if (this.store.mode() === 'track') return;
+      // un clic sulla linea del percorso non aggiunge tappe in fondo: la linea si trascina
+      if (map.queryRenderedFeatures(e.point, { layers: ['route-hit'] }).length) return;
       this.store.addWaypoint({ lon: e.lngLat.lng, lat: e.lngLat.lat });
     });
 
     map.on('mousemove', 'route-hit', (e) => {
-      const track = this.store.track();
-      if (track.length < 2) return;
-      map.getCanvas().style.cursor = 'crosshair';
-      const line = lineString(track.map((p) => [p.lon, p.lat]));
-      const nearest = nearestPointOnLine(line, point([e.lngLat.lng, e.lngLat.lat]), { units: 'kilometers' });
-      // la distanza di turf è geodetica come la nostra: aggiungo l'offset del primo punto
-      this.store.hover.set({ dist: track[0].dist + nearest.properties.location, source: 'map' });
+      const dist = this.distanceAlongTrack(e.lngLat.lng, e.lngLat.lat);
+      if (dist == null) return;
+      if (!this.drag) map.getCanvas().style.cursor = this.store.mode() === 'plan' ? 'grab' : 'crosshair';
+      this.store.hover.set({ dist, source: 'map' });
     });
 
     map.on('mouseleave', 'route-hit', () => {
-      map.getCanvas().style.cursor = '';
+      if (!this.drag) map.getCanvas().style.cursor = '';
       if (this.store.hover()?.source === 'map') this.store.hover.set(null);
+    });
+
+    // trascinando la linea del percorso si inserisce una tappa nel tratto corrispondente
+    map.on('mousedown', 'route-hit', (e) => {
+      const wps = this.store.waypoints();
+      if (this.store.mode() !== 'plan' || wps.length < 2 || e.originalEvent.button !== 0) return;
+      const dist = this.distanceAlongTrack(e.lngLat.lng, e.lngLat.lat);
+      if (dist == null) return;
+      e.preventDefault(); // niente spostamento della mappa durante il trascinamento
+      this.drag = { leg: this.store.legAt(dist), moved: false };
+      map.getCanvas().style.cursor = 'grabbing';
+      // rilascio fuori dalla mappa: il mouseup della mappa non arriva, annullo
+      window.addEventListener(
+        'mouseup',
+        () => {
+          if (!this.drag) return;
+          this.drag = null;
+          map.getCanvas().style.cursor = '';
+          this.source('drag-preview').setData(emptyLine());
+        },
+        { once: true },
+      );
+    });
+
+    map.on('mousemove', (e) => {
+      if (!this.drag) return;
+      this.drag.moved = true;
+      const wps = this.store.waypoints();
+      const a = wps[this.drag.leg];
+      const b = wps[this.drag.leg + 1];
+      if (!a || !b) return;
+      this.source('drag-preview').setData({
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'LineString', coordinates: [[a.lon, a.lat], [e.lngLat.lng, e.lngLat.lat], [b.lon, b.lat]] },
+      });
+    });
+
+    map.on('mouseup', (e) => {
+      const drag = this.drag;
+      if (!drag) return;
+      this.drag = null;
+      map.getCanvas().style.cursor = '';
+      this.source('drag-preview').setData(emptyLine());
+      if (drag.moved) this.store.insertWaypoint(drag.leg + 1, { lon: e.lngLat.lng, lat: e.lngLat.lat });
     });
 
     // scheda del sentiero SAT al passaggio del mouse (il percorso pianificato ha la precedenza)
@@ -401,7 +490,7 @@ export class MapView implements OnDestroy {
     map.on('mousemove', 'avalanche-fill', (e) => {
       const id = e.features?.[0]?.properties?.['id'] as string | undefined;
       if (!id || this.hoveredRegion()?.regionId === id) return;
-      this.hoveredRegion.set(this.bulletin()?.regions.get(id) ?? null);
+      this.hoveredRegion.set(this.avalanche.current()?.regions.get(id) ?? null);
       map.setFilter('avalanche-highlight', ['==', ['get', 'id'], id]);
     });
     map.on('mouseleave', 'avalanche-fill', () => {
@@ -422,25 +511,14 @@ export class MapView implements OnDestroy {
     return DANGER_LEVELS.find((d) => d.level === level);
   }
 
-  private avalancheToken = 0;
-
-  private async loadAvalanche(date: string): Promise<void> {
-    const token = ++this.avalancheToken;
-    this.avalancheLoading.set(true);
-    this.avalancheError.set(null);
-    try {
-      const [regions, bulletin] = await Promise.all([this.avalanche.microRegions(), this.avalanche.bulletin(date || undefined)]);
-      if (token !== this.avalancheToken) return;
-      this.bulletin.set(bulletin);
-      this.source('avalanche').setData(colorRegions(regions, bulletin));
-    } catch (e) {
-      if (token !== this.avalancheToken) return;
-      this.bulletin.set(null);
-      this.source('avalanche').setData(emptyLine());
-      this.avalancheError.set((e as Error).message);
-    } finally {
-      if (token === this.avalancheToken) this.avalancheLoading.set(false);
-    }
+  /** Distanza progressiva (km) del punto della traccia più vicino a lon/lat. */
+  private distanceAlongTrack(lon: number, lat: number): number | null {
+    const track = this.store.track();
+    if (track.length < 2) return null;
+    const line = lineString(track.map((p) => [p.lon, p.lat]));
+    const nearest = nearestPointOnLine(line, point([lon, lat]), { units: 'kilometers' });
+    // la distanza di turf è geodetica come la nostra: aggiungo l'offset del primo punto
+    return track[0].dist + nearest.properties.location;
   }
 
   private hideSatInfo(): void {
