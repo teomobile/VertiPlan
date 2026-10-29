@@ -207,4 +207,4 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 | 2026-10-29 | `fdee9ff` | Handoff e CLAUDE.md |
 | 2026-10-29 | `97d8c2f` | Adattamento a telefono: cassetto dal basso, livelli richiudibili, tocco su SAT/valanghe, trascinamento linea con pressione prolungata |
 | 2026-10-29 | `024f8b3` | App rinominata da Crinalia a **VertiPlan**; repo pubblicato su github.com/teomobile/VertiPlan |
-| 2026-10-29 | (questo commit) | App Android con Capacitor 8.6 (JDK 21), provata su Pixel 8a; altimetria leggibile e livelli in griglia su telefono; pressione prolungata funzionante nella WebView |
+| 2026-10-29 | `7b88148` | App Android con Capacitor 8.6 (JDK 21), provata su Pixel 8a; altimetria leggibile e livelli in griglia su telefono; pressione prolungata funzionante nella WebView |
