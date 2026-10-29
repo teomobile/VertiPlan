@@ -2,6 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { Waypoint } from './geo';
 import { RoutingProfile } from './routing.service';
 
+// nome storico (l'app si chiamava Crinalia): non cambiarlo, i percorsi salvati verrebbero persi
 const DB_NAME = 'crinalia';
 const DB_VERSION = 1;
 const STORE = 'routes';

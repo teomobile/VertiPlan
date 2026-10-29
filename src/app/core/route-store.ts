@@ -20,6 +20,7 @@ export interface Range {
   to: number;
 }
 
+// nome storico (l'app si chiamava Crinalia): non cambiarlo, si perderebbe il percorso in corso
 const STORAGE_KEY = 'crinalia.route.v1';
 
 interface Saved {

@@ -42,7 +42,7 @@ export function buildGpx(name: string, points: TrackPoint[], waypoints: Waypoint
     .join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="Crinalia" xmlns="http://www.topografix.com/GPX/1/1">
+<gpx version="1.1" creator="VertiPlan" xmlns="http://www.topografix.com/GPX/1/1">
   <metadata><name>${esc(name)}</name><time>${new Date().toISOString()}</time></metadata>
 ${wpts}
   <trk>

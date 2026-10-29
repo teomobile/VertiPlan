@@ -1,4 +1,4 @@
-# Crinalia — istruzioni per l'assistente
+# VertiPlan — istruzioni per l'assistente
 
 Webapp Angular 20 di mappe outdoor (Trentino), futura app Android con Capacitor.
 

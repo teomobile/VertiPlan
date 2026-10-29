@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "crinalia": {
+    "vertiplan": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -86,10 +86,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "crinalia:build:production"
+              "buildTarget": "vertiplan:build:production"
             },
             "development": {
-              "buildTarget": "crinalia:build:development"
+              "buildTarget": "vertiplan:build:development"
             }
           },
           "defaultConfiguration": "development"

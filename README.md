@@ -1,4 +1,4 @@
-# Crinalia
+# VertiPlan
 
 Webapp Angular per pianificare escursioni: mappa OSM con i sentieri, percorso calcolato sui sentieri,
 profilo altimetrico sincronizzato con la mappa, import/export GPX.

@@ -1,26 +1,28 @@
-# Crinalia — Handoff
+# VertiPlan — Handoff
 
 Documento per riprendere il lavoro da zero (nuovo account, nuovo assistente, nuovo PC).
 **Va aggiornato alla fine di ogni blocco di lavoro**: sezioni "Stato", "Prossimi passi" e "Registro".
 
-Ultimo aggiornamento: **2026-10-29** — dopo il commit `fdee9ff` (adattamento a telefono, vedi Registro).
+Ultimo aggiornamento: **2026-10-29** — rinomina in VertiPlan e repo su GitHub (vedi Registro).
 
 ---
 
 ## 1. In breve
 
-**Crinalia** è una webapp di mappe outdoor ispirata a mapy.cz, centrata su Trentino e Alpi orientali:
+**VertiPlan** è una webapp di mappe outdoor ispirata a mapy.cz, centrata su Trentino e Alpi orientali:
 mappa con sentieri, pianificazione di percorsi a piedi, altimetria sincronizzata con la mappa, GPX,
 libreria personale, percorsi consigliati, strumenti per lo sci alpinismo (pendenze, bollettino valanghe).
 
 - Obiettivo finale: webapp + **app Android** (stesso codice Angular impacchettato con **Capacitor**) con uso **offline**.
 - Utenti previsti: pochi (uso personale/gruppo). Per questo usiamo servizi pubblici gratuiti senza backend.
-- Il nome "Crinalia" (da *crinale*) è stato scelto dopo una ricerca web veloce: nessuna app trovata con quel nome,
-  ma **non è stato verificato il registro dei marchi**.
+- Nome scelto dall'utente il 2026-10-29: **VertiPlan** (prima si chiamava "Crinalia"). Registro dei marchi **non verificato**.
+- Gli identificativi di salvataggio nel browser restano quelli storici (`crinalia.route.v1`, IndexedDB `crinalia`):
+  **non rinominarli**, si perderebbero i percorsi salvati. La cartella del progetto resta `MapyRep`.
 
 ## 2. Come riprendere (checklist per un nuovo account)
 
-1. Apri la cartella `C:\Users\Matteo\Desktop\GestioneCorsi\MapyRep` (è un repo git, branch `master`, **nessun remote**).
+1. Apri la cartella `C:\Users\Matteo\Desktop\GestioneCorsi\MapyRep` (repo git, branch `master`, remote `origin` =
+   https://github.com/teomobile/VertiPlan.git). Su un altro PC: `git clone https://github.com/teomobile/VertiPlan.git`.
 2. Leggi questo file e il [README.md](README.md) (uso e struttura).
 3. `npm install` (solo se manca `node_modules`), poi `npm start` → http://localhost:4200.
 4. Controlla `git log --oneline` e `git status`: il registro in fondo a questo file deve corrispondere all'ultimo commit.
@@ -28,22 +30,23 @@ libreria personale, percorsi consigliati, strumenti per lo sci alpinismo (penden
 
 Requisiti: Node 22, npm 10, Angular CLI 20 (anche via `npx ng`). Sviluppato su Windows 11.
 
-> Consiglio: il repo esiste **solo su questo PC**. Per non perdere nulla cambiando account o macchina,
-> aggiungere un remote (GitHub/GitLab privato) e fare push.
+> Dopo ogni commit fare `git push`, così GitHub resta allineato. Il KML scaricato della SAT (`data/sat-raw/`) non è
+> nel repo: si riscarica con i comandi del §6 (il GeoJSON generato invece è versionato).
 
 ## 3. Avvio, build, comandi utili
 
 ```bash
 npm start                                   # dev server su http://localhost:4200
-npx ng build                                # build di produzione in dist/crinalia
+npx ng build                                # build di produzione in dist/vertiplan
 node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml   # rigenera il layer SAT (vedi §6)
 ```
 
 - **Cache di build corrotta**: se `ng build` e `ng serve` girano insieme si rovina `.angular/cache/.../.tsbuildinfo`
   (errore "Debug Failure. Expected ... .tsbuildinfo"). Soluzione: cancellare quel file, oppure buildare con
   `NG_PERSISTENT_BUILD_CACHE=0 npx ng build`, oppure fermare `ng serve` prima della build.
-- In modalità sviluppo la mappa è esposta come `window.crinaliaMap` (debug dalla console).
-- Il percorso pianificato corrente sta in `localStorage` (`crinalia.route.v1`); la libreria in IndexedDB (db `crinalia`).
+- In modalità sviluppo la mappa è esposta come `window.vertiplanMap` (debug dalla console).
+- Il percorso pianificato corrente sta in `localStorage` (`crinalia.route.v1`); la libreria in IndexedDB (db `crinalia`):
+  nomi storici, da non cambiare.
 
 ## 4. Stack e architettura
 
@@ -137,7 +140,6 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 
 ## 9. Prossimi passi (in ordine di priorità suggerito)
 
-0. **Repository remoto**: oggi il repo è solo locale. Serve un repo privato vuoto (GitHub/GitLab) creato dall'utente: poi `git remote add origin <url>` e `git push -u origin master` (credenziali via Git Credential Manager). La GitHub CLI (`gh`) non è installata.
 1. **App Android** con Capacitor (tappa 2 del piano mobile): servono Android Studio e JDK; poi GPS (tappa 3: posizione, registrazione traccia, navigazione) e offline (tappa 4: PMTiles per zona).
 2. **Backend leggero**: account, sincronizzazione della libreria, condivisione di un percorso via link.
 3. Altimetria al tocco; prova su telefono vero.
@@ -166,4 +168,5 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 | 2026-10-26 | `d2efead` | Bollettino valanghe Euregio |
 | 2026-10-26 | `93f7b9c` | Terreno e valanghe lungo il percorso; tappe trascinando la linea |
 | 2026-10-29 | `fdee9ff` | Handoff e CLAUDE.md |
-| 2026-10-29 | (questo commit) | Adattamento a telefono: cassetto dal basso, livelli richiudibili, tocco su SAT/valanghe, trascinamento linea con pressione prolungata |
+| 2026-10-29 | `97d8c2f` | Adattamento a telefono: cassetto dal basso, livelli richiudibili, tocco su SAT/valanghe, trascinamento linea con pressione prolungata |
+| 2026-10-29 | (questo commit) | App rinominata da Crinalia a **VertiPlan**; repo pubblicato su github.com/teomobile/VertiPlan |

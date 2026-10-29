@@ -253,7 +253,7 @@ export class MapView implements OnDestroy {
       );
       this.bindEvents(this.map);
       // per il debug dalla console del browser
-      if (isDevMode()) (window as unknown as { crinaliaMap: MlMap }).crinaliaMap = this.map;
+      if (isDevMode()) (window as unknown as { vertiplanMap: MlMap }).vertiplanMap = this.map;
     });
 
     // traccia
