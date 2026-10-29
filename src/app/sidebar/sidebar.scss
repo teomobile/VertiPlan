@@ -13,6 +13,71 @@
   }
 }
 
+.sheet-handle {
+  display: none;
+}
+
+// --- telefono: cassetto dal basso ----------------------------------------
+@media (max-width: 800px) {
+  :host {
+    position: fixed;
+    z-index: 20;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding-top: 0;
+    border-right: 0;
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -4px 18px rgb(0 0 0 / 18%);
+    transition: height 0.25s ease;
+    overscroll-behavior: contain;
+  }
+
+  :host([data-sheet='peek']) {
+    height: var(--sheet-peek);
+    overflow: hidden;
+  }
+
+  :host([data-sheet='half']) {
+    height: 50dvh;
+  }
+
+  :host([data-sheet='full']) {
+    height: 88dvh;
+  }
+
+  .sheet-handle {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin: 0 -16px;
+    padding: 8px 16px 10px;
+    border: 0;
+    background: var(--surface);
+    font: inherit;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    touch-action: none;
+
+    .grip {
+      width: 40px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+    }
+
+    b {
+      color: var(--text);
+    }
+  }
+
+}
+
 .brand {
   display: flex;
   gap: 10px;
@@ -419,5 +484,13 @@ footer {
 
   a {
     color: inherit;
+  }
+}
+
+// in fondo al file, per prevalere sulla regola generale del logo
+@media (max-width: 800px) {
+  // nel cassetto il logo occupa spazio prezioso
+  .brand {
+    display: none;
   }
 }

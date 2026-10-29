@@ -1,3 +1,22 @@
+<!-- solo su telefono: maniglia del cassetto (tocca o scorri per aprire/chiudere) -->
+<button
+  type="button"
+  class="sheet-handle"
+  (pointerdown)="onHandleDown($event)"
+  (pointerup)="onHandleUp($event)"
+  [attr.aria-label]="sheet() === 'peek' ? 'Apri il pannello' : 'Riduci il pannello'"
+>
+  <span class="grip"></span>
+  <span class="summary">
+    @if (store.track().length > 1) {
+      <b>{{ store.stats().distanceKm.toFixed(1) }} km</b> · ↗ {{ store.stats().ascent.toFixed(0) }} m ·
+      {{ formatDuration(store.stats().durationMin) }}
+    } @else {
+      Tocca la mappa per aggiungere tappe
+    }
+  </span>
+</button>
+
 <div class="brand">
   <svg viewBox="0 0 32 20" aria-hidden="true"><path d="M1 19 L11 5 L16 11 L21 3 L31 19 Z" /></svg>
   <span>Crinalia</span>

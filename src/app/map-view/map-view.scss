@@ -71,6 +71,37 @@
   }
 }
 
+.panel-toggle {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  .panel {
+    right: 56px;
+  }
+
+  .panel-toggle {
+    display: block;
+    padding: 7px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .panel:not(.open) > :not(.panel-toggle) {
+    display: none;
+  }
+
+  .avalanche {
+    max-height: 40dvh;
+  }
+}
+
 .avalanche {
   width: min(340px, 100%);
   max-height: 55vh;

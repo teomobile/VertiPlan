@@ -11,19 +11,16 @@ main {
   min-height: 0;
 }
 
+// telefono: mappa a tutto schermo, il pannello diventa un cassetto dal basso (vedi sidebar.scss)
 @media (max-width: 800px) {
   :host {
-    grid-template-columns: 1fr;
-    grid-template-rows: 60dvh auto;
-    height: auto;
-  }
-
-  app-sidebar {
-    order: 2;
-    border-right: 0;
+    display: block;
   }
 
   main {
-    grid-template-rows: 1fr 170px;
+    height: 100dvh;
+    grid-template-rows: 1fr 140px;
+    // spazio per la maniglia del cassetto chiuso
+    padding-bottom: var(--sheet-peek);
   }
 }

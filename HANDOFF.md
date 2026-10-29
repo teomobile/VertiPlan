@@ -3,7 +3,7 @@
 Documento per riprendere il lavoro da zero (nuovo account, nuovo assistente, nuovo PC).
 **Va aggiornato alla fine di ogni blocco di lavoro**: sezioni "Stato", "Prossimi passi" e "Registro".
 
-Ultimo aggiornamento: **2026-10-26** — commit `93f7b9c`.
+Ultimo aggiornamento: **2026-10-29** — dopo il commit `fdee9ff` (adattamento a telefono, vedi Registro).
 
 ---
 
@@ -73,7 +73,10 @@ Struttura (`src/app/`):
 | `place-search/`, `routes-panel/`, `library-panel/` | Componenti delle schede |
 | `scripts/build-sat.mjs` | Converte il KML SAT nel GeoJSON `public/data/sat-sentieri.geojson` |
 
-## 5. Funzionalità attuali (stato al 2026-10-26)
+## 5. Funzionalità attuali (stato al 2026-10-29)
+
+- **Telefono** (schermi ≤ 800 px): mappa a tutto schermo, pannello come **cassetto dal basso** (chiuso con riepilogo / metà / quasi pieno, tocco o scorrimento sulla maniglia), livelli dietro il pulsante "☰ Livelli", crediti compatti dietro la "i".
+- **Tocco** (dispositivi senza mouse, `hover: none`): tocco su un sentiero SAT → scheda con "+ Tappa qui"; con il layer valanghe acceso il tocco aggiorna il riquadro della microzona; sulla linea del percorso **tieni premuto ~0,4 s e trascina** per inserire una tappa (uno scorrimento normale sposta la mappa).
 
 - Mappa OSM / OpenTopoMap, rilievo ombreggiato, vista 3D.
 - Layer **Sentieri SAT** (1082 sentieri ufficiali, colori per difficoltà T/E/EE/EEA, numero, scheda al passaggio del mouse) e overlay **Sentieri OSM** (Waymarked Trails, spento di default).
@@ -122,7 +125,8 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 
 ## 8. Problemi noti e limiti
 
-- Scheda dei sentieri SAT e microzone valanghe solo al **passaggio del mouse**: su mobile servirà il tocco.
+- Il tocco è stato verificato con l'emulazione telefono del browser e eventi touch simulati, **non ancora su un telefono vero**.
+- L'altimetria (uPlot) al tocco non è ottimizzata: il cursore segue il dito solo in parte.
 - Correzione dello z-index della scheda SAT sopra il pannello livelli: **non verificata a schermo**.
 - DEM a ~30 m: canali stretti e ripidi possono risultare sottostimati. Possibile migliorare col LiDAR della Provincia di Trento.
 - Il bollettino è stagionale: fuori stagione (maggio→dicembre) l'ultimo disponibile è scaduto, l'app lo segnala.
@@ -133,9 +137,10 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 
 ## 9. Prossimi passi (in ordine di priorità suggerito)
 
-1. **App Android** con Capacitor: mappe offline (PMTiles per zona), registrazione traccia GPS, navigazione con avviso fuori percorso.
+0. **Repository remoto**: oggi il repo è solo locale. Serve un repo privato vuoto (GitHub/GitLab) creato dall'utente: poi `git remote add origin <url>` e `git push -u origin master` (credenziali via Git Credential Manager). La GitHub CLI (`gh`) non è installata.
+1. **App Android** con Capacitor (tappa 2 del piano mobile): servono Android Studio e JDK; poi GPS (tappa 3: posizione, registrazione traccia, navigazione) e offline (tappa 4: PMTiles per zona).
 2. **Backend leggero**: account, sincronizzazione della libreria, condivisione di un percorso via link.
-3. Supporto **tocco/mobile** (schede SAT e valanghe al tap, layout).
+3. Altimetria al tocco; prova su telefono vero.
 4. **POI** (rifugi, bivacchi, fontane, parcheggi) e **meteo** lungo il percorso (Open-Meteo forecast).
 5. Layer **MTB** (stessa API Waymarked), **piste** (OpenSnowMap), **sentieri chiusi** (fonte da trovare).
 6. **Test** su `geo.ts` e GPX; **pagina crediti/licenze**.
@@ -160,3 +165,5 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 | 2026-10-25 | `1ce3870` | Pendenza sull'altimetria, rilievo, 3D, carta pendenze ≥30° |
 | 2026-10-26 | `d2efead` | Bollettino valanghe Euregio |
 | 2026-10-26 | `93f7b9c` | Terreno e valanghe lungo il percorso; tappe trascinando la linea |
+| 2026-10-29 | `fdee9ff` | Handoff e CLAUDE.md |
+| 2026-10-29 | (questo commit) | Adattamento a telefono: cassetto dal basso, livelli richiudibili, tocco su SAT/valanghe, trascinamento linea con pressione prolungata |

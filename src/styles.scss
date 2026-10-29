@@ -8,6 +8,8 @@
   --accent-strong: #b03a0c;
   --accent-soft: #ffe8dc;
   --shadow: 0 1px 4px rgb(0 0 0 / 18%);
+  /** Altezza del cassetto del pannello quando è chiuso (solo telefono). */
+  --sheet-peek: 56px;
 }
 
 * {
@@ -111,6 +113,23 @@ button.link {
   .sat-group {
     font-size: 12px;
     color: var(--text-muted);
+  }
+
+  // versione al tocco: interattiva, con pulsante
+  &.sat-popup-tap {
+    pointer-events: auto;
+  }
+
+  .sat-add {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
   }
 }
 

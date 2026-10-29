@@ -12,7 +12,15 @@ import {
 } from '@angular/core';
 import nearestPointOnLine from '@turf/nearest-point-on-line';
 import { lineString, point } from '@turf/helpers';
-import maplibregl, { GeoJSONSource, LngLatBounds, Map as MlMap, Marker, StyleSpecification } from 'maplibre-gl';
+import maplibregl, {
+  GeoJSONSource,
+  LngLat,
+  LngLatBounds,
+  Map as MlMap,
+  Marker,
+  Point,
+  StyleSpecification,
+} from 'maplibre-gl';
 import { pointAtDistance, sliceTrack, slopeAngleClass, TrackPoint, Waypoint } from '../core/geo';
 import { RouteAnalysisService } from '../core/route-analysis.service';
 import { RouteStore } from '../core/route-store';
@@ -39,6 +47,8 @@ const BASE_LAYERS: { id: BaseLayer; label: string }[] = [
 ];
 
 const START_CENTER: [number, number] = [11.12, 46.07]; // Trento
+/** Tocco: quanto tenere premuto sulla linea del percorso prima di poterla trascinare. */
+const LONG_PRESS_MS = 400;
 
 const STYLE: StyleSpecification = {
   version: 8,
@@ -188,6 +198,8 @@ export class MapView implements OnDestroy {
   private analysis = inject(RouteAnalysisService);
 
   protected readonly showAvalanche = signal(false);
+  /** Pannello livelli aperto (conta solo su telefono, sul desktop è sempre visibile). */
+  protected readonly panelOpen = signal(false);
   protected readonly hoveredRegion = signal<RegionBulletin | null>(null);
   protected readonly dangerLevels = DANGER_LEVELS;
   protected readonly today = new Date().toISOString().slice(0, 10);
@@ -199,7 +211,12 @@ export class MapView implements OnDestroy {
   private hoverMarker?: Marker;
   private satLoaded = false;
   /** Trascinamento in corso della linea del percorso (tratto tra la tappa leg e leg+1). */
-  private drag: { leg: number; moved: boolean } | null = null;
+  private drag: { leg: number; moved: boolean; last?: LngLat } | null = null;
+  /** Pressione prolungata sulla linea in attesa di diventare un trascinamento (solo tocco). */
+  private longPress: { start: Point; timer: ReturnType<typeof setTimeout> } | null = null;
+  /** Dispositivo senza mouse (telefono, tablet): le schede si aprono al tocco. */
+  private readonly touchMode = matchMedia('(hover: none)').matches;
+  private satTapPopup = new maplibregl.Popup({ className: 'sat-popup sat-popup-tap', maxWidth: '280px', offset: 8 });
   private satPopup = new maplibregl.Popup({
     closeButton: false,
     closeOnClick: false,
@@ -219,6 +236,8 @@ export class MapView implements OnDestroy {
         maxZoom: 19,
         maxPitch: 70,
         doubleClickZoom: false,
+        // sul telefono i crediti restano dietro la "i" per non coprire la mappa
+        attributionControl: { compact: true },
       });
       this.map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
       this.map.on('zoomend', () => this.zoom.set(this.map!.getZoom()));
@@ -228,6 +247,10 @@ export class MapView implements OnDestroy {
       );
       this.map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
       this.map.on('load', () => this.ready.set(true));
+      // i crediti compatti di MapLibre partono aperti: li chiudo appena la mappa è pronta, restano dietro la "i"
+      this.map.once('idle', () =>
+        this.container().nativeElement.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'),
+      );
       this.bindEvents(this.map);
       // per il debug dalla console del browser
       if (isDevMode()) (window as unknown as { crinaliaMap: MlMap }).crinaliaMap = this.map;
@@ -409,9 +432,27 @@ export class MapView implements OnDestroy {
     map.on('moveend', updateCenter);
 
     map.on('click', (e) => {
-      if (this.store.mode() === 'track') return;
       // un clic sulla linea del percorso non aggiunge tappe in fondo: la linea si trascina
-      if (map.queryRenderedFeatures(e.point, { layers: ['route-hit'] }).length) return;
+      const onRoute = map.queryRenderedFeatures(e.point, { layers: ['route-hit'] }).length > 0;
+
+      if (this.touchMode) {
+        // senza mouse non c'è il "passaggio": le informazioni arrivano al tocco
+        if (this.showAvalanche()) {
+          const id = map.queryRenderedFeatures(e.point, { layers: ['avalanche-fill'] })[0]?.properties?.['id'];
+          if (id) {
+            this.hoveredRegion.set(this.avalanche.current()?.regions.get(id) ?? null);
+            map.setFilter('avalanche-highlight', ['==', ['get', 'id'], id]);
+          }
+        }
+        const sat = this.showSat() && !onRoute ? map.queryRenderedFeatures(e.point, { layers: ['sat-hit'] })[0] : undefined;
+        if (sat) {
+          this.showSatTap(map, sat.properties as SatProps, e.lngLat);
+          return;
+        }
+        map.setFilter('sat-highlight', ['==', ['get', 'numero'], '']);
+      }
+
+      if (this.store.mode() === 'track' || onRoute) return;
       this.store.addWaypoint({ lon: e.lngLat.lng, lat: e.lngLat.lat });
     });
 
@@ -452,15 +493,54 @@ export class MapView implements OnDestroy {
     map.on('mousemove', (e) => {
       if (!this.drag) return;
       this.drag.moved = true;
-      const wps = this.store.waypoints();
-      const a = wps[this.drag.leg];
-      const b = wps[this.drag.leg + 1];
-      if (!a || !b) return;
-      this.source('drag-preview').setData({
-        type: 'Feature',
-        properties: {},
-        geometry: { type: 'LineString', coordinates: [[a.lon, a.lat], [e.lngLat.lng, e.lngLat.lat], [b.lon, b.lat]] },
-      });
+      this.showDragPreview(e.lngLat.lng, e.lngLat.lat);
+    });
+
+    // al tocco: tieni premuto sulla linea, poi trascina (un trascinamento normale sposta la mappa)
+    map.on('touchstart', 'route-hit', (e) => {
+      if (this.store.mode() !== 'plan' || this.store.waypoints().length < 2 || e.points.length !== 1) return;
+      const dist = this.distanceAlongTrack(e.lngLat.lng, e.lngLat.lat);
+      if (dist == null) return;
+      const start = e.point;
+      const at = e.lngLat;
+      clearTimeout(this.longPress?.timer);
+      this.longPress = {
+        start,
+        timer: setTimeout(() => {
+          this.longPress = null;
+          this.drag = { leg: this.store.legAt(dist), moved: false };
+          map.dragPan.disable();
+          navigator.vibrate?.(30);
+          this.showDragPreview(at.lng, at.lat);
+        }, LONG_PRESS_MS),
+      };
+    });
+
+    map.on('touchmove', (e) => {
+      if (this.longPress) {
+        // il dito si è mosso prima del tempo: è un normale spostamento della mappa
+        if (Math.hypot(e.point.x - this.longPress.start.x, e.point.y - this.longPress.start.y) > 10) {
+          clearTimeout(this.longPress.timer);
+          this.longPress = null;
+        }
+        return;
+      }
+      if (!this.drag || e.points.length !== 1) return;
+      this.drag.moved = true;
+      this.drag.last = e.lngLat;
+      this.showDragPreview(e.lngLat.lng, e.lngLat.lat);
+    });
+
+    map.on('touchend', () => {
+      clearTimeout(this.longPress?.timer);
+      this.longPress = null;
+      const drag = this.drag;
+      if (!drag) return;
+      this.drag = null;
+      map.dragPan.enable();
+      this.source('drag-preview').setData(emptyLine());
+      // a fine tocco la posizione del dito non c'è più: uso l'ultima vista durante il trascinamento
+      if (drag.moved && drag.last) this.store.insertWaypoint(drag.leg + 1, { lon: drag.last.lng, lat: drag.last.lat });
     });
 
     map.on('mouseup', (e) => {
@@ -509,6 +589,38 @@ export class MapView implements OnDestroy {
 
   protected dangerOf(level: number) {
     return DANGER_LEVELS.find((d) => d.level === level);
+  }
+
+  private showDragPreview(lon: number, lat: number): void {
+    if (!this.drag) return;
+    const wps = this.store.waypoints();
+    const a = wps[this.drag.leg];
+    const b = wps[this.drag.leg + 1];
+    if (!a || !b) return;
+    this.source('drag-preview').setData({
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'LineString', coordinates: [[a.lon, a.lat], [lon, lat], [b.lon, b.lat]] },
+    });
+  }
+
+  /** Al tocco: scheda del sentiero SAT con il pulsante per aggiungere una tappa in quel punto. */
+  private showSatTap(map: MlMap, props: SatProps, at: { lng: number; lat: number }): void {
+    const el = document.createElement('div');
+    el.innerHTML = satTooltipHtml(props);
+    if (this.store.mode() === 'plan') {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sat-add';
+      btn.textContent = '+ Tappa qui';
+      btn.addEventListener('click', () => {
+        this.store.addWaypoint({ lon: at.lng, lat: at.lat });
+        this.satTapPopup.remove();
+      });
+      el.appendChild(btn);
+    }
+    map.setFilter('sat-highlight', ['==', ['get', 'numero'], props.numero]);
+    this.satTapPopup.setLngLat(at).setDOMContent(el).addTo(map);
   }
 
   /** Distanza progressiva (km) del punto della traccia più vicino a lon/lat. */

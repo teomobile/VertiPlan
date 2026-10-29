@@ -10,11 +10,15 @@ import { LibraryService } from '../core/library.service';
 import { RouteAnalysisService } from '../core/route-analysis.service';
 import { AvalancheService, DANGER_LEVELS } from '../core/avalanche.service';
 
+type SheetState = 'peek' | 'half' | 'full';
+const SHEET_STATES: SheetState[] = ['peek', 'half', 'full'];
+
 @Component({
   selector: 'app-sidebar',
   imports: [PlaceSearch, RoutesPanel, LibraryPanel],
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.scss',
+  host: { '[attr.data-sheet]': 'sheet()' },
 })
 export class Sidebar {
   protected store = inject(RouteStore);
@@ -23,6 +27,23 @@ export class Sidebar {
   /** Indice della tappa che si sta sostituendo con una ricerca. */
   protected readonly editing = signal<number | null>(null);
   protected readonly tab = signal<'plan' | 'routes' | 'library'>('plan');
+  /** Posizione del cassetto su telefono (sul desktop il pannello è sempre aperto). */
+  protected readonly sheet = signal<SheetState>('peek');
+  private handleStartY: number | null = null;
+
+  protected onHandleDown(e: PointerEvent): void {
+    this.handleStartY = e.clientY;
+  }
+
+  /** Tocco: posizione successiva. Scorrimento: su apre, giù chiude. */
+  protected onHandleUp(e: PointerEvent): void {
+    const dy = this.handleStartY == null ? 0 : e.clientY - this.handleStartY;
+    this.handleStartY = null;
+    const i = SHEET_STATES.indexOf(this.sheet());
+    if (Math.abs(dy) < 20) this.sheet.set(i === SHEET_STATES.length - 1 ? 'peek' : SHEET_STATES[i + 1]);
+    else if (dy < 0) this.sheet.set(SHEET_STATES[Math.min(SHEET_STATES.length - 1, i + 1)]);
+    else this.sheet.set(SHEET_STATES[Math.max(0, i - 1)]);
+  }
   protected library = inject(LibraryService);
   protected analysis = inject(RouteAnalysisService);
   protected avalanche = inject(AvalancheService);

@@ -1,6 +1,10 @@
 <div class="map" #map></div>
 
-<div class="panel">
+<div class="panel" [class.open]="panelOpen()">
+  <!-- solo su telefono: il pannello livelli/legende si apre a richiesta -->
+  <button type="button" class="panel-toggle" (click)="panelOpen.set(!panelOpen())" [attr.aria-expanded]="panelOpen()">
+    {{ panelOpen() ? '✕ Chiudi' : '☰ Livelli' }}
+  </button>
   <div class="layers">
     @for (l of baseLayers; track l.id) {
       <button type="button" [class.active]="base() === l.id" (click)="base.set(l.id)">{{ l.label }}</button>

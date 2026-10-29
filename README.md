@@ -15,7 +15,8 @@ Poi apri http://localhost:4200.
 ## Uso
 
 - **Clic sulla mappa**: aggiunge una tappa (la prima è la partenza). Trascina le tappe per spostarle, doppio clic per eliminarle.
-- **Trascina la linea del percorso** per inserire una tappa intermedia nel tratto giusto (anteprima tratteggiata durante il trascinamento).
+- **Trascina la linea del percorso** per inserire una tappa intermedia nel tratto giusto (anteprima tratteggiata durante il trascinamento). Al tocco: tieni premuto sulla linea, poi trascina.
+- **Telefono**: il pannello è un cassetto dal basso (tocca o scorri la maniglia), i livelli sono dietro "☰ Livelli"; toccando un sentiero SAT si apre la scheda con "+ Tappa qui".
 - **Terreno e valanghe** (pannello Pianifica): inclinazione massima del pendio attraversato, metri di percorso su terreno ≥ 30/35/40/45°, e — in Trentino, Alto Adige e Tirolo — microzone del bollettino attraversate con il grado di pericolo alle quote del percorso. I tratti ripidi sono evidenziati da un alone colorato sulla mappa e da una striscia sotto l'altimetria. Il "limite del bosco" del bollettino è stimato a 2000 m. È un aiuto alla pianificazione, non sostituisce la valutazione sul posto.
 - **Pendenza**: il profilo altimetrico è colorato per pendenza (tratti di almeno 100 m), con pendenza massima in salita e discesa nelle statistiche e nel tratto selezionato.
 - **Terreno**: "Rilievo" (ombreggiatura), "3D" (rilievo inclinabile, trascina col tasto destro per ruotare) e "Pendenze ≥ 30°": carta dell'inclinazione del pendio per lo sci alpinismo (30–35°, 35–40°, 40–45°, > 45°), calcolata nel browser dalle Terrain Tiles con il metodo di Horn. Visibile da zoom 12. Risoluzione del modello ~30 m: i pendii ripidi ma brevi possono risultare sottostimati.
