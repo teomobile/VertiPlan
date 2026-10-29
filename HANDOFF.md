@@ -3,7 +3,7 @@
 Documento per riprendere il lavoro da zero (nuovo account, nuovo assistente, nuovo PC).
 **Va aggiornato alla fine di ogni blocco di lavoro**: sezioni "Stato", "Prossimi passi" e "Registro".
 
-Ultimo aggiornamento: **2026-10-29** — rinomina in VertiPlan e repo su GitHub (vedi Registro).
+Ultimo aggiornamento: **2026-10-29** — app Android (Capacitor) funzionante su Pixel 8a (vedi Registro).
 
 ---
 
@@ -41,6 +41,33 @@ npx ng build                                # build di produzione in dist/vertip
 node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml   # rigenera il layer SAT (vedi §6)
 ```
 
+### App Android (Capacitor 8.6)
+
+- Progetto nativo in `android/` (app id `it.teomobile.vertiplan`, minSdk 24, target 36). Config: `capacitor.config.ts`
+  (`webDir: dist/vertiplan/browser`).
+- **Serve JDK 21**: il JBR di Android Studio è Java 25 e Gradle 8.14.3 (template Capacitor 8) non lo supporta
+  ("Unsupported class file major version 69"). JDK 21 Temurin installato in `C:\Users\Matteo\.jdks\jdk-21.0.12.1+1`
+  (Android Studio: Settings → Build Tools → Gradle → Gradle JDK → quella cartella).
+- `android/local.properties` (non versionato) contiene `sdk.dir=C\:/Users/Matteo/AppData/Local/Android/Sdk`.
+
+```bash
+npm run android:sync                      # ng build + copia della webapp nel progetto Android
+cd android && JAVA_HOME="C:/Users/Matteo/.jdks/jdk-21.0.12.1+1" ./gradlew assembleDebug
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk      # telefono via USB (debug USB attivo)
+adb shell am start -n it.teomobile.vertiplan/.MainActivity
+npm run android:open                      # apre il progetto in Android Studio
+```
+
+- `adb` sta in `%LOCALAPPDATA%\Android\Sdk\platform-tools\`. Se `adb devices` si blocca: chiudere il processo `adb` e riprovare.
+- Log dell'app: `adb logcat --pid=$(adb shell pidof it.teomobile.vertiplan)` (cercare `Capacitor/Console`).
+- Telefono di prova: **Pixel 8a**. Per gli screenshot il telefono deve essere sbloccato con l'app in primo piano.
+- **Debug della WebView dal PC**: con l'APK di debug `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>`
+  e poi Chrome DevTools Protocol su `http://localhost:9222/json` (o `chrome://inspect` in Chrome). `window.vertiplanMap`
+  esiste solo con la build di sviluppo: `npx ng build --configuration development` prima di `cap sync`.
+- **Emulatore**: non parte per spazio — su C: ~3 GB liberi, l'AVD vuole 12 GB. Eventualmente spostarlo su D: con memoria ridotta.
+
+### Note
+
 - **Cache di build corrotta**: se `ng build` e `ng serve` girano insieme si rovina `.angular/cache/.../.tsbuildinfo`
   (errore "Debug Failure. Expected ... .tsbuildinfo"). Soluzione: cancellare quel file, oppure buildare con
   `NG_PERSISTENT_BUILD_CACHE=0 npx ng build`, oppure fermare `ng serve` prima della build.
@@ -77,6 +104,12 @@ Struttura (`src/app/`):
 | `scripts/build-sat.mjs` | Converte il KML SAT nel GeoJSON `public/data/sat-sentieri.geojson` |
 
 ## 5. Funzionalità attuali (stato al 2026-10-29)
+
+- **App Android** (Capacitor): stessa webapp impacchettata, file locali serviti da `https://localhost`, mappe e servizi online.
+  Verificata su **Pixel 8a**: mappa, SAT, percorso, cassetto, altimetria, livelli in griglia, **"la mia posizione"**
+  (confermata dall'utente) e **pressione prolungata sulla linea** (provata con gesto touch reale via DevTools).
+- Telefono: livelli in griglia a due colonne; sulla mappa disattivati selezione del testo e menu contestuale di sistema
+  (bloccavano la pressione prolungata nella WebView).
 
 - **Telefono** (schermi ≤ 800 px): mappa a tutto schermo, pannello come **cassetto dal basso** (chiuso con riepilogo / metà / quasi pieno, tocco o scorrimento sulla maniglia), livelli dietro il pulsante "☰ Livelli", crediti compatti dietro la "i".
 - **Tocco** (dispositivi senza mouse, `hover: none`): tocco su un sentiero SAT → scheda con "+ Tappa qui"; con il layer valanghe acceso il tocco aggiorna il riquadro della microzona; sulla linea del percorso **tieni premuto ~0,4 s e trascina** per inserire una tappa (uno scorrimento normale sposta la mappa).
@@ -128,7 +161,10 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 
 ## 8. Problemi noti e limiti
 
-- Il tocco è stato verificato con l'emulazione telefono del browser e eventi touch simulati, **non ancora su un telefono vero**.
+- La pressione prolungata vale solo sulla **linea del percorso** (inserisce una tappa intermedia), non sui sentieri:
+  non è evidente per l'utente → valutare un suggerimento in interfaccia.
+- Tocco su un sentiero SAT e cassetto: provati in emulazione browser; sul telefono vero solo visualizzazione.
+- Disco C: quasi pieno (~3 GB): rischio per build Android e cache Gradle.
 - L'altimetria (uPlot) al tocco non è ottimizzata: il cursore segue il dito solo in parte.
 - Correzione dello z-index della scheda SAT sopra il pannello livelli: **non verificata a schermo**.
 - DEM a ~30 m: canali stretti e ripidi possono risultare sottostimati. Possibile migliorare col LiDAR della Provincia di Trento.
@@ -140,7 +176,8 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 
 ## 9. Prossimi passi (in ordine di priorità suggerito)
 
-1. **App Android** con Capacitor (tappa 2 del piano mobile): servono Android Studio e JDK; poi GPS (tappa 3: posizione, registrazione traccia, navigazione) e offline (tappa 4: PMTiles per zona).
+1. **GPS nell'app** (tappa 3): verificare la posizione, poi registrazione traccia (plugin di geolocalizzazione in background)
+   e navigazione con avviso fuori percorso. Poi **offline** (tappa 4: PMTiles per zona). Icona e splash dell'app da personalizzare.
 2. **Backend leggero**: account, sincronizzazione della libreria, condivisione di un percorso via link.
 3. Altimetria al tocco; prova su telefono vero.
 4. **POI** (rifugi, bivacchi, fontane, parcheggi) e **meteo** lungo il percorso (Open-Meteo forecast).
@@ -169,4 +206,5 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 | 2026-10-26 | `93f7b9c` | Terreno e valanghe lungo il percorso; tappe trascinando la linea |
 | 2026-10-29 | `fdee9ff` | Handoff e CLAUDE.md |
 | 2026-10-29 | `97d8c2f` | Adattamento a telefono: cassetto dal basso, livelli richiudibili, tocco su SAT/valanghe, trascinamento linea con pressione prolungata |
-| 2026-10-29 | (questo commit) | App rinominata da Crinalia a **VertiPlan**; repo pubblicato su github.com/teomobile/VertiPlan |
+| 2026-10-29 | `024f8b3` | App rinominata da Crinalia a **VertiPlan**; repo pubblicato su github.com/teomobile/VertiPlan |
+| 2026-10-29 | (questo commit) | App Android con Capacitor 8.6 (JDK 21), provata su Pixel 8a; altimetria leggibile e livelli in griglia su telefono; pressione prolungata funzionante nella WebView |

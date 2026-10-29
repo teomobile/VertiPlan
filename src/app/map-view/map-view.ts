@@ -531,6 +531,16 @@ export class MapView implements OnDestroy {
       this.showDragPreview(e.lngLat.lng, e.lngLat.lat);
     });
 
+    // il sistema può interrompere il gesto (es. notifica, gesto di navigazione): annullo senza inserire tappe
+    map.on('touchcancel', () => {
+      clearTimeout(this.longPress?.timer);
+      this.longPress = null;
+      if (!this.drag) return;
+      this.drag = null;
+      map.dragPan.enable();
+      this.source('drag-preview').setData(emptyLine());
+    });
+
     map.on('touchend', () => {
       clearTimeout(this.longPress?.timer);
       this.longPress = null;

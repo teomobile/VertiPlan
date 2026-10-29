@@ -266,3 +266,53 @@
   color: var(--accent-strong);
   pointer-events: none;
 }
+
+// in fondo al file, per prevalere sulle regole generali di .layers
+@media (max-width: 800px) {
+  .panel {
+    align-items: stretch;
+    max-height: calc(100% - 20px);
+    overflow-y: auto;
+  }
+
+  .panel-toggle {
+    align-self: flex-start;
+  }
+
+  // livelli in griglia su due colonne: niente scorrimento orizzontale
+  .layers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    padding: 6px;
+
+    button {
+      padding: 10px 6px;
+      text-align: center;
+    }
+
+    .toggle {
+      gap: 8px;
+      padding: 10px 6px;
+      border-left: 0;
+      font-size: 14px;
+
+      input {
+        width: 18px;
+        height: 18px;
+      }
+    }
+  }
+
+  .avalanche {
+    width: 100%;
+  }
+}
+
+// sulla mappa la pressione prolungata serve all'app (trascinare la linea del percorso):
+// niente selezione del testo né menu contestuale del sistema
+.map {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

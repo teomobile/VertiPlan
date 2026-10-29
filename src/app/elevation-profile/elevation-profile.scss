@@ -57,6 +57,35 @@ header {
   }
 }
 
+// schermi stretti o senza mouse: intestazione su una sola riga, così il grafico ha spazio
+@media (max-width: 800px), (hover: none) {
+  :host {
+    padding: 6px 8px 2px;
+  }
+
+  header {
+    gap: 8px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 12px;
+
+    // il testo di aiuto parla di mouse e occupa righe preziose
+    .hint {
+      display: none;
+    }
+
+    .slope-legend {
+      flex-wrap: nowrap;
+      flex-shrink: 1;
+      min-width: 0;
+      overflow: hidden;
+      gap: 6px;
+      font-size: 10px;
+    }
+  }
+}
+
 .chart {
   flex: 1;
   min-height: 0;

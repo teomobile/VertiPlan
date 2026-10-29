@@ -91,3 +91,14 @@ src/app/
 - Ombreggiatura del rilievo e rilievo 3D (dati DEM in formato terrain-RGB)
 - Percorsi salvati multipli / backend
 - App Android con Capacitor, mappe offline in PMTiles
+
+## App Android
+
+Stessa webapp impacchettata con Capacitor (progetto in `android/`). Serve **JDK 21** (non il Java 25 incluso in Android Studio).
+
+```bash
+npm run android:sync
+cd android && JAVA_HOME="C:/Users/Matteo/.jdks/jdk-21.0.12.1+1" ./gradlew assembleDebug
+```
+
+L'APK di debug è in `android/app/build/outputs/apk/debug/app-debug.apk`; si installa con `adb install -r` (telefono con debug USB). Dettagli in [HANDOFF.md](HANDOFF.md).
