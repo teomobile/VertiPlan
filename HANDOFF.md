@@ -139,6 +139,7 @@ Struttura (`src/app/`):
 | Bollettino valanghe | https://avalanche.report/bulletins/latest/EUREGIO_it_CAAMLv6.json e archivio `bulletins/AAAA-MM-GG/AAAA-MM-GG_EUREGIO_it_CAAMLv6.json` | **CC BY 4.0** |
 | Microzone valanghe | https://regions.avalanches.org/micro-regions/{IT-32-TN,IT-32-BZ,AT-07}_micro-regions.geojson.json | CC0 |
 | Font etichette | tiles.openfreemap.org/fonts | — |
+| *(non usati)* WMS Provincia di Trento | `https://siat.provincia.tn.it/geoserver/stem/wms` (livelli `dtm_315_wg` / `dtm_135_wg` ombreggiatura LiDAR, `ctp2025_bn_00` carta tecnica 2025, `dtm_10m`…); ortofoto 2015 su `.../geoserver/stem/ecw-rgb-2015/wms` (layer `ecw-rgb-2015`) | **CC BY 4.0**. EPSG:3857 ok, ~0,3 s a tile, ma **nessun CORS** → servono proxy (vedi §7) |
 
 Per aggiornare i sentieri SAT (il KML scaricato sta in `data/sat-raw/`, escluso da git):
 
@@ -158,6 +159,11 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 - **Limite del bosco** del bollettino stimato a **2000 m** nei calcoli lungo il percorso (dichiarato nell'interfaccia).
 - **Pendenze dell'altimetria su tratti ≥ 100 m**: più corti seguirebbero il rumore del DEM.
 - Percorsi con biforcazioni (Waymarked): "Usa come percorso" prende il ramo di andata.
+- **Webapp e app Android allineate, nel limite del possibile** (decisione dell'utente, 2026-10-30): una funzionalità va
+  in entrambe; solo nell'app quando il browser proprio non lo permette (es. registrazione GPS in background, mappe offline
+  sul telefono). Se nella webapp è fattibile con un po' di lavoro in più, si aspetta di farla in entrambe.
+  Esempio: i **WMS della Provincia di Trento** (vedi §6) non mandano CORS; nella webapp funzionerebbero con un proxy,
+  quindi si aggiungono insieme al backend (§9) invece che subito solo nell'app.
 
 ## 8. Problemi noti e limiti
 
@@ -178,7 +184,8 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 
 1. **GPS nell'app** (tappa 3): verificare la posizione, poi registrazione traccia (plugin di geolocalizzazione in background)
    e navigazione con avviso fuori percorso. Poi **offline** (tappa 4: PMTiles per zona). Icona e splash dell'app da personalizzare.
-2. **Backend leggero**: account, sincronizzazione della libreria, condivisione di un percorso via link.
+2. **Backend leggero**: account, sincronizzazione della libreria, condivisione di un percorso via link; **proxy per i WMS
+   della Provincia** (ombreggiatura LiDAR, carta tecnica 2025, ortofoto), così funzionano sia nella webapp sia nell'app.
 3. Altimetria al tocco; prova su telefono vero.
 4. **POI** (rifugi, bivacchi, fontane, parcheggi) e **meteo** lungo il percorso (Open-Meteo forecast).
 5. Layer **MTB** (stessa API Waymarked), **piste** (OpenSnowMap), **sentieri chiusi** (fonte da trovare).
