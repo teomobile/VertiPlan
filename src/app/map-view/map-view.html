@@ -130,6 +130,8 @@
   <button type="button" class="fit" (click)="fitTrack()" title="Inquadra il percorso">⤢</button>
 }
 
+<app-gps-bar class="gps" [following]="follow()" (recenter)="follow.set(true)" />
+
 @if (dragging()) {
   <div class="drop">Rilascia il file GPX</div>
 }

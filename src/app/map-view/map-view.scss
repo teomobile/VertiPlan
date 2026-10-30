@@ -316,3 +316,12 @@
   -webkit-user-select: none;
   user-select: none;
 }
+
+// comandi GPS in basso a sinistra, sopra la scala
+.gps {
+  position: absolute;
+  z-index: 3;
+  left: 10px;
+  right: 60px;
+  bottom: 40px;
+}

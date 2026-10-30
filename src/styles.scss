@@ -142,3 +142,14 @@ button.link {
   box-shadow: 0 0 0 2px #1864ab, 0 2px 6px rgb(0 0 0 / 40%);
   pointer-events: none;
 }
+
+/* posizione GPS durante registrazione/navigazione (marker MapLibre) */
+.me-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #1c7ed6;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px rgb(28 126 214 / 40%), 0 2px 6px rgb(0 0 0 / 35%);
+  pointer-events: none;
+}

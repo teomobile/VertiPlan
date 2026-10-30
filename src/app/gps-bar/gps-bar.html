@@ -1,0 +1,63 @@
+@if (location.error(); as err) {
+  <div class="card error">⚠ {{ err }}</div>
+}
+
+@if (nav.status(); as s) {
+  <div class="card nav" [class.off]="nav.offRoute()">
+    @if (nav.offRoute()) {
+      <div class="alert">Fuori percorso: {{ s.offsetM.toFixed(0) }} m dalla traccia</div>
+    }
+    <div class="row">
+      <span class="big">{{ km(s.remaining.distanceKm) }}</span>
+      <span>↗ {{ s.remaining.ascent.toFixed(0) }} m · ↘ {{ s.remaining.descent.toFixed(0) }} m</span>
+      <span>{{ formatDuration(s.remaining.durationMin) }}</span>
+    </div>
+    <div class="progress"><i [style.width.%]="s.progress * 100"></i></div>
+  </div>
+} @else if (nav.active()) {
+  <div class="card nav"><span class="muted">In attesa del GPS…</span></div>
+}
+
+@if (recorder.state() !== 'idle') {
+  <div class="card rec">
+    <div class="row">
+      <span class="dot" [class.paused]="recorder.state() === 'paused'"></span>
+      <span class="big">{{ clock(recorder.elapsedMs()) }}</span>
+      <span>{{ km(recorder.stats().distanceKm) }} · ↗ {{ recorder.stats().ascent.toFixed(0) }} m</span>
+    </div>
+    @if (recorder.state() === 'recording' && !location.background) {
+      <div class="muted">Tieni lo schermo acceso: nel browser il GPS si ferma a schermo spento.</div>
+    }
+    @if (recorder.state() === 'paused' && recorder.points().length) {
+      <div class="muted">In pausa · {{ recorder.points().length }} punti registrati</div>
+    }
+  </div>
+}
+
+<div class="buttons">
+  @if (recorder.state() === 'idle') {
+    <button type="button" (click)="recorder.start()">⏺ Registra</button>
+  } @else {
+    @if (recorder.state() === 'recording') {
+      <button type="button" (click)="recorder.pause()">⏸ Pausa</button>
+    } @else {
+      <button type="button" (click)="recorder.resume()">⏵ Riprendi</button>
+    }
+    <button type="button" class="primary" (click)="recorder.stop()" [disabled]="recorder.points().length < 2">■ Salva</button>
+    @if (confirmDiscard()) {
+      <button type="button" class="danger" (click)="discard()">Scarta davvero</button>
+    } @else {
+      <button type="button" class="icon" (click)="confirmDiscard.set(true)" title="Scarta la registrazione">✕</button>
+    }
+  }
+
+  @if (nav.active()) {
+    <button type="button" (click)="nav.stop()">⏹ Fine navigazione</button>
+  } @else if (store.track().length > 1) {
+    <button type="button" (click)="nav.start()">▶ Naviga</button>
+  }
+
+  @if (busy() && !following()) {
+    <button type="button" (click)="recenter.emit()" title="Torna a seguire la posizione">⌖ Segui</button>
+  }
+</div>

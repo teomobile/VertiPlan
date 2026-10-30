@@ -139,7 +139,8 @@ function indexAtDistance(points: TrackPoint[], d: number): number {
 /** Punto interpolato alla distanza d (km) lungo la traccia. */
 export function pointAtDistance(points: TrackPoint[], d: number): TrackPoint | null {
   if (points.length === 0) return null;
-  if (d <= 0) return points[0];
+  // confronto con il primo punto, non con 0: un tratto di traccia (sliceTrack) non parte da distanza zero
+  if (d <= points[0].dist) return points[0];
   const last = points[points.length - 1];
   if (d >= last.dist) return last;
   const i = indexAtDistance(points, d);

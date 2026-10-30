@@ -3,7 +3,7 @@
 Documento per riprendere il lavoro da zero (nuovo account, nuovo assistente, nuovo PC).
 **Va aggiornato alla fine di ogni blocco di lavoro**: sezioni "Stato", "Prossimi passi" e "Registro".
 
-Ultimo aggiornamento: **2026-10-29** — app Android (Capacitor) funzionante su Pixel 8a (vedi Registro).
+Ultimo aggiornamento: **2026-10-30** — GPS: registrazione traccia e navigazione (vedi Registro).
 
 ---
 
@@ -96,6 +96,10 @@ Struttura (`src/app/`):
 | `core/recommended-routes.service.ts` | Percorsi segnati OSM (API Waymarked Trails) |
 | `core/avalanche.service.ts` | Bollettino Euregio CAAML v6 + microzone EAWS (stato condiviso, point-in-polygon) |
 | `core/route-analysis.service.ts` | Inclinazione del terreno e pericolo valanghe lungo il percorso |
+| `core/location.service.ts` | Posizione GPS condivisa (contatore di utilizzatori): browser `watchPosition` nella webapp, plugin `@capacitor-community/background-geolocation` nell'app |
+| `core/recorder.service.ts` | Registrazione traccia: filtro precisione (≤35 m) e passo (≥5 m), stato salvato in `localStorage` (`vertiplan.recording.v1`) e ripreso in pausa dopo una chiusura |
+| `core/navigation.service.ts` | Navigazione lungo la traccia caricata: rimanente, avanzamento, fuori percorso (>50 m per 2 letture) |
+| `gps-bar/` | Barra GPS sulla mappa: Registra / Pausa / Salva / Scarta, Naviga / Fine, Segui |
 | `map-view/` | Mappa: livelli, tappe, trascinamento linea, popup SAT, riquadro valanghe |
 | `map-view/sat-layer.ts`, `terrain-layers.ts`, `avalanche-layer.ts` | Definizioni dei layer; `terrain-layers` registra il protocollo `slope://` |
 | `elevation-profile/` | Altimetria uPlot: colori per pendenza, striscia pendii ≥30°, sincronizzazione con la mappa |
@@ -103,7 +107,17 @@ Struttura (`src/app/`):
 | `place-search/`, `routes-panel/`, `library-panel/` | Componenti delle schede |
 | `scripts/build-sat.mjs` | Converte il KML SAT nel GeoJSON `public/data/sat-sentieri.geojson` |
 
-## 5. Funzionalità attuali (stato al 2026-10-29)
+## 5. Funzionalità attuali (stato al 2026-10-30)
+
+- **GPS** (webapp e app): barra in basso sulla mappa.
+  - **Registra**: tempo, km, salita in tempo reale; linea blu sulla mappa; Pausa/Riprendi; **Salva** → in "I miei percorsi"
+    come "Registrazione <data>" (origine "Registrata col GPS"), quote sostituite dal modello del terreno; ✕ per scartare.
+    Se l'app/pagina si chiude, la registrazione ricompare **in pausa**.
+  - **Naviga** (con un percorso caricato): km, salita, discesa e tempo **rimanenti**, barra di avanzamento, "sei qui" blu
+    sull'altimetria, **avviso "Fuori percorso"** con vibrazione oltre 50 m; la mappa segue la posizione finché non la sposti
+    ("⌖ Segui" per tornare).
+  - **Solo app**: registrazione/navigazione continuano **a schermo spento** (servizio Android in primo piano con notifica).
+    Nella webapp il GPS si ferma a schermo spento: l'interfaccia lo dice.
 
 - **App Android** (Capacitor): stessa webapp impacchettata, file locali serviti da `https://localhost`, mappe e servizi online.
   Verificata su **Pixel 8a**: mappa, SAT, percorso, cassetto, altimetria, livelli in griglia, **"la mia posizione"**
@@ -167,6 +181,16 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 
 ## 8. Problemi noti e limiti
 
+- GPS nella webapp verificato con **posizioni simulate** (finto `navigator.geolocation` che percorre la traccia, con una
+  deviazione per l'avviso). Sul Pixel: servizio in primo piano attivo (`dumpsys activity services`), posizioni ricevute
+  anche a schermo spento, ma la prova è stata breve (7 s a schermo spento, telefono fermo) → **manca una prova camminando**.
+- Permesso di posizione: se l'utente sceglie **"Solo questa volta"** Android lo revoca in background e la registrazione a
+  schermo spento si può interrompere → scegliere **"Mentre usi l'app"** (basta, grazie al servizio in primo piano).
+- Il permesso notifiche (Android 13+) ora viene chiesto all'avvio del GPS con `@capacitor/local-notifications`:
+  senza, la notifica del servizio resta nascosta (la registrazione funziona lo stesso).
+- Da fermi la registrazione aggiunge pochi punti: filtro voluto (passo ≥ 5 m, precisione ≤ 35 m).
+- La salita in diretta usa la quota GPS (rumorosa, isteresi 8 m); quella salvata usa il modello del terreno.
+
 - La pressione prolungata vale solo sulla **linea del percorso** (inserisce una tappa intermedia), non sui sentieri:
   non è evidente per l'utente → valutare un suggerimento in interfaccia.
 - Tocco su un sentiero SAT e cassetto: provati in emulazione browser; sul telefono vero solo visualizzazione.
@@ -182,8 +206,8 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 
 ## 9. Prossimi passi (in ordine di priorità suggerito)
 
-1. **GPS nell'app** (tappa 3): verificare la posizione, poi registrazione traccia (plugin di geolocalizzazione in background)
-   e navigazione con avviso fuori percorso. Poi **offline** (tappa 4: PMTiles per zona). Icona e splash dell'app da personalizzare.
+1. **Provare il GPS sul campo** (registrazione a schermo spento, navigazione), permesso notifiche su Android 13+.
+   Poi **offline** (tappa 4: PMTiles per zona). Icona e splash dell'app da personalizzare.
 2. **Backend leggero**: account, sincronizzazione della libreria, condivisione di un percorso via link; **proxy per i WMS
    della Provincia** (ombreggiatura LiDAR, carta tecnica 2025, ortofoto), così funzionano sia nella webapp sia nell'app.
 3. Altimetria al tocco; prova su telefono vero.
@@ -215,3 +239,5 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 | 2026-10-29 | `97d8c2f` | Adattamento a telefono: cassetto dal basso, livelli richiudibili, tocco su SAT/valanghe, trascinamento linea con pressione prolungata |
 | 2026-10-29 | `024f8b3` | App rinominata da Crinalia a **VertiPlan**; repo pubblicato su github.com/teomobile/VertiPlan |
 | 2026-10-29 | `7b88148` | App Android con Capacitor 8.6 (JDK 21), provata su Pixel 8a; altimetria leggibile e livelli in griglia su telefono; pressione prolungata funzionante nella WebView |
+| 2026-10-30 | `003ceb0` | Handoff: webapp e app allineate nel limite del possibile; WMS della Provincia |
+| 2026-10-30 | (questo commit) | GPS: registrazione traccia e navigazione con avviso fuori percorso (webapp e app, in background solo app); corretto `pointAtDistance` sui tratti di traccia |

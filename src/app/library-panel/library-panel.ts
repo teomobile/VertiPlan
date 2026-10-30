@@ -8,6 +8,7 @@ const ORIGIN_LABELS: Record<SavedOrigin, string> = {
   gpx: 'GPX importato',
   plan: 'Pianificato',
   recommended: 'Percorso consigliato',
+  recorded: 'Registrata col GPS',
 };
 
 /** "I miei percorsi": GPX importati e percorsi salvati, conservati nel browser. */

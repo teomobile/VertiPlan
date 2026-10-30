@@ -8,7 +8,7 @@ const DB_VERSION = 1;
 const STORE = 'routes';
 
 /** Da dove arriva il percorso salvato. */
-export type SavedOrigin = 'gpx' | 'plan' | 'recommended';
+export type SavedOrigin = 'gpx' | 'plan' | 'recommended' | 'recorded';
 
 export interface SavedSummary {
   id: string;

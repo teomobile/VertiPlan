@@ -10,6 +10,7 @@ import {
   TrackPoint,
 } from '../core/geo';
 import { RouteAnalysisService } from '../core/route-analysis.service';
+import { NavigationService } from '../core/navigation.service';
 import { RouteStore } from '../core/route-store';
 
 /** Pendenza media (%) in una finestra di ±halfKm attorno alla distanza d. */
@@ -28,6 +29,7 @@ function slopeAt(points: TrackPoint[], d: number, halfKm = 0.05): number | null 
 export class ElevationProfile implements OnDestroy {
   protected store = inject(RouteStore);
   protected analysis = inject(RouteAnalysisService);
+  private nav = inject(NavigationService);
   private chartEl = viewChild.required<ElementRef<HTMLDivElement>>('chart');
   private plot?: uPlot;
   private resizeObserver?: ResizeObserver;
@@ -71,9 +73,10 @@ export class ElevationProfile implements OnDestroy {
       else this.plot = new uPlot(this.options(), data, this.chartEl().nativeElement);
     });
 
-    // ridisegno quando arriva l'analisi del terreno
+    // ridisegno quando arriva l'analisi del terreno o si sposta la posizione in navigazione
     effect(() => {
       this.analysis.samples();
+      this.nav.status();
       this.plot?.redraw(false);
     });
 
@@ -137,6 +140,18 @@ export class ElevationProfile implements OnDestroy {
       const x1 = u.valToPos(samples[i].dist, 'x', true);
       ctx.fillStyle = cls.color;
       ctx.fillRect(x0, bottom - band, Math.max(1, x1 - x0), band);
+    }
+
+    // navigazione: "sei qui" sul profilo
+    const along = this.nav.status()?.along;
+    if (along != null) {
+      const x = u.valToPos(along, 'x', true);
+      ctx.strokeStyle = '#1c7ed6';
+      ctx.lineWidth = 3 * devicePixelRatio;
+      ctx.beginPath();
+      ctx.moveTo(x, bbox.top);
+      ctx.lineTo(x, bottom);
+      ctx.stroke();
     }
     ctx.restore();
   }

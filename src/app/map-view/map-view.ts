@@ -1,6 +1,7 @@
 import {
   afterNextRender,
   Component,
+  computed,
   effect,
   ElementRef,
   inject,
@@ -23,6 +24,10 @@ import maplibregl, {
 } from 'maplibre-gl';
 import { pointAtDistance, sliceTrack, slopeAngleClass, TrackPoint, Waypoint } from '../core/geo';
 import { RouteAnalysisService } from '../core/route-analysis.service';
+import { LocationService } from '../core/location.service';
+import { NavigationService } from '../core/navigation.service';
+import { RecorderService } from '../core/recorder.service';
+import { GpsBar } from '../gps-bar/gps-bar';
 import { RouteStore } from '../core/route-store';
 import {
   GLYPHS_URL,
@@ -87,6 +92,8 @@ const STYLE: StyleSpecification = {
     selection: { type: 'geojson', data: emptyLine() },
     'drag-preview': { type: 'geojson', data: emptyLine() },
     'route-steep': { type: 'geojson', data: emptyLine() },
+    recorded: { type: 'geojson', data: emptyLine() },
+    'me-accuracy': { type: 'geojson', data: emptyLine() },
   },
   layers: [
     { id: 'osm', type: 'raster', source: 'osm' },
@@ -139,6 +146,28 @@ const STYLE: StyleSpecification = {
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: { 'line-color': '#1864ab', 'line-width': 6 },
     },
+    // traccia che si sta registrando col GPS
+    {
+      id: 'recorded-casing',
+      type: 'line',
+      source: 'recorded',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': '#ffffff', 'line-width': 7 },
+    },
+    {
+      id: 'recorded-line',
+      type: 'line',
+      source: 'recorded',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': '#1c7ed6', 'line-width': 4 },
+    },
+    // cerchio di precisione della posizione GPS
+    {
+      id: 'me-accuracy',
+      type: 'fill',
+      source: 'me-accuracy',
+      paint: { 'fill-color': '#228be6', 'fill-opacity': 0.15, 'fill-outline-color': '#228be6' },
+    },
     {
       id: 'drag-preview',
       type: 'line',
@@ -172,6 +201,7 @@ function toLine(points: TrackPoint[]): GeoJSON.FeatureCollection {
 
 @Component({
   selector: 'app-map-view',
+  imports: [GpsBar],
   templateUrl: './map-view.html',
   styleUrl: './map-view.scss',
   host: {
@@ -196,6 +226,13 @@ export class MapView implements OnDestroy {
   private elevation = inject(ElevationService);
   protected avalanche = inject(AvalancheService);
   private analysis = inject(RouteAnalysisService);
+  private location = inject(LocationService);
+  private recorder = inject(RecorderService);
+  private nav = inject(NavigationService);
+  /** La mappa segue la posizione durante registrazione/navigazione, finché l'utente non la sposta. */
+  protected readonly follow = signal(true);
+  private meMarker?: Marker;
+  private readonly gpsBusy = computed(() => this.recorder.state() !== 'idle' || this.nav.active());
 
   protected readonly showAvalanche = signal(false);
   /** Pannello livelli aperto (conta solo su telefono, sul desktop è sempre visibile). */
@@ -261,6 +298,41 @@ export class MapView implements OnDestroy {
       const track = this.store.track();
       if (!this.ready()) return;
       this.source('route').setData(toLine(track));
+    });
+
+    // traccia in registrazione
+    effect(() => {
+      const pts = this.recorder.points();
+      if (!this.ready()) return;
+      this.source('recorded').setData(
+        pts.length > 1
+          ? { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts.map((p) => [p[0], p[1]]) } }
+          : emptyLine(),
+      );
+    });
+
+    // all'avvio di registrazione o navigazione la mappa torna a seguire la posizione
+    effect(() => {
+      if (this.gpsBusy()) this.follow.set(true);
+    });
+
+    // posizione GPS: puntino, cerchio di precisione, mappa che segue
+    effect(() => {
+      const fix = this.location.fix();
+      const busy = this.gpsBusy();
+      const follow = this.follow();
+      if (!this.ready() || !this.map) return;
+      if (!fix || !busy) {
+        this.meMarker?.remove();
+        this.source('me-accuracy').setData(emptyLine());
+        return;
+      }
+      this.meMarker ??= new maplibregl.Marker({ element: dot('me-dot') });
+      this.meMarker.setLngLat([fix.lon, fix.lat]).addTo(this.map);
+      this.source('me-accuracy').setData(accuracyCircle(fix.lon, fix.lat, fix.accuracy));
+      if (follow) {
+        untracked(() => this.map!.easeTo({ center: [fix.lon, fix.lat], zoom: Math.max(this.map!.getZoom(), 15), duration: 500 }));
+      }
     });
 
     // tratti su terreno ripido, raggruppati per classe di inclinazione
@@ -430,6 +502,11 @@ export class MapView implements OnDestroy {
     // subito, senza aspettare il caricamento delle tile: serve già alla ricerca e ai percorsi consigliati
     updateCenter();
     map.on('moveend', updateCenter);
+
+    // se l'utente sposta la mappa durante registrazione/navigazione, smette di seguire la posizione
+    map.on('dragstart', (e) => {
+      if (e.originalEvent && this.gpsBusy()) this.follow.set(false);
+    });
 
     map.on('click', (e) => {
       // un clic sulla linea del percorso non aggiunge tappe in fondo: la linea si trascina
@@ -667,6 +744,17 @@ export class MapView implements OnDestroy {
       return marker;
     });
   }
+}
+
+/** Cerchio (poligono a 48 lati) di raggio r metri attorno a lon/lat, per la precisione del GPS. */
+function accuracyCircle(lon: number, lat: number, r: number): GeoJSON.Feature {
+  const dLat = r / 111320;
+  const dLon = dLat / Math.cos((lat * Math.PI) / 180);
+  const ring = Array.from({ length: 49 }, (_, i) => {
+    const a = (i / 48) * 2 * Math.PI;
+    return [lon + dLon * Math.cos(a), lat + dLat * Math.sin(a)];
+  });
+  return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } };
 }
 
 function dot(className: string, text = ''): HTMLDivElement {
