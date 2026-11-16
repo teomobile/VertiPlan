@@ -1,6 +1,69 @@
 <!-- schede aggiunte dalla mappa (es. misura verso un punto) -->
 <ng-content />
 
+@if (car.picking()) {
+  <div class="card car">
+    <div class="row"><b>🚗 Tocca la mappa dove hai parcheggiato</b></div>
+    <div class="actions"><button type="button" (click)="car.picking.set(false)">Annulla</button></div>
+  </div>
+}
+
+@if (carPrompt()) {
+  <div class="card car">
+    <div class="row"><b>🚗 Segno qui la posizione dell'auto?</b></div>
+    <div class="actions">
+      <button type="button" class="primary" (click)="carHere()">Sì, segna qui</button>
+      <button type="button" (click)="carOnMap()">Sulla mappa</button>
+      <button type="button" (click)="carPrompt.set(false)">No</button>
+    </div>
+  </div>
+}
+
+@if (carMenu()) {
+  <div class="card car">
+    @if (car.car(); as spot) {
+      <div class="row">
+        <b>🚗 Torna alla macchina</b>
+        @if (car.info(); as i) {
+          <span class="muted">{{ km(i.km) }} in linea d'aria · direzione {{ i.direction }}</span>
+        }
+      </div>
+      <div class="actions">
+        <button type="button" class="primary" (click)="goBack('trails')" [disabled]="car.busy()">Sui sentieri</button>
+        @if (car.canRetrace()) {
+          <button type="button" (click)="goBack('retrace')" [disabled]="car.busy()" title="Funziona anche senza rete">
+            Ripercorri la traccia
+          </button>
+        }
+        <button type="button" (click)="goBack('straight')" [disabled]="car.busy()">In linea retta</button>
+      </div>
+      <div class="actions small">
+        <button type="button" (click)="carHere()">Sposta qui</button>
+        <button type="button" (click)="carOnMap()">Sposta sulla mappa</button>
+        <button type="button" (click)="car.clear(); carMenu.set(false)">Rimuovi auto</button>
+      </div>
+      <div class="muted">"Sui sentieri" usa la rete; "Ripercorri la traccia" funziona anche offline.</div>
+    } @else {
+      <div class="row"><b>🚗 Dove hai parcheggiato?</b></div>
+      <div class="actions">
+        <button type="button" class="primary" (click)="carHere()" [disabled]="car.busy()">Qui (GPS)</button>
+        <button type="button" (click)="carOnMap()">Sulla mappa</button>
+      </div>
+    }
+  </div>
+}
+
+@if (car.busy()) {
+  <div class="card car"><span class="muted">🚗 Un momento…</span></div>
+} @else if (car.message(); as msg) {
+  <div class="card car">
+    <div class="row">
+      <span>{{ msg }}</span>
+      <button type="button" class="close" (click)="car.message.set(null)" title="Chiudi">✕</button>
+    </div>
+  </div>
+}
+
 @if (location.error(); as err) {
   <div class="card error">⚠ {{ err }}</div>
 }
@@ -39,7 +102,7 @@
 
 <div class="buttons">
   @if (recorder.state() === 'idle') {
-    <button type="button" (click)="recorder.start()">⏺ Registra</button>
+    <button type="button" (click)="startRecording()">⏺ Registra</button>
   } @else {
     @if (recorder.state() === 'recording') {
       <button type="button" (click)="recorder.pause()">⏸ Pausa</button>
@@ -59,6 +122,10 @@
   } @else if (store.track().length > 1) {
     <button type="button" (click)="nav.start()">▶ Naviga</button>
   }
+
+  <button type="button" [class.active]="carMenu()" (click)="carMenu.set(!carMenu())" [title]="car.car() ? 'Torna alla macchina' : 'Segna dove hai parcheggiato'">
+    🚗 @if (car.car()) { Torna all'auto } @else { Segna auto }
+  </button>
 
   @if (busy() && !following()) {
     <button type="button" (click)="recenter.emit()" title="Torna a seguire la posizione">⌖ Segui</button>

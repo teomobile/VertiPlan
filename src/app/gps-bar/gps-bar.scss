@@ -122,3 +122,51 @@
     }
   }
 }
+
+.car {
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+
+    button {
+      padding: 7px 11px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+
+      &.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #fff;
+      }
+
+      &:disabled {
+        opacity: 0.5;
+      }
+    }
+
+    &.small button {
+      padding: 4px 9px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+  }
+
+  .close {
+    margin-left: auto;
+    border: 0;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+}
+
+.buttons button.active {
+  outline: 2px solid var(--accent);
+}

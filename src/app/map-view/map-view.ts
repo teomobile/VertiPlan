@@ -39,6 +39,7 @@ import { LocationService } from '../core/location.service';
 import { NavigationService } from '../core/navigation.service';
 import { RecorderService } from '../core/recorder.service';
 import { GpsBar } from '../gps-bar/gps-bar';
+import { CarService } from '../core/car.service';
 import { RouteStore } from '../core/route-store';
 import {
   GLYPHS_URL,
@@ -262,6 +263,8 @@ export class MapView implements OnDestroy {
   private location = inject(LocationService);
   private recorder = inject(RecorderService);
   private nav = inject(NavigationService);
+  private car = inject(CarService);
+  private carMarker?: Marker;
   /** La mappa segue la posizione durante registrazione/navigazione, finché l'utente non la sposta. */
   protected readonly follow = signal(true);
   private meMarker?: Marker;
@@ -372,6 +375,24 @@ export class MapView implements OnDestroy {
       if (follow) {
         untracked(() => this.map!.easeTo({ center: [fix.lon, fix.lat], zoom: Math.max(this.map!.getZoom(), 15), duration: 500 }));
       }
+    });
+
+    // auto parcheggiata
+    effect(() => {
+      const spot = this.car.car();
+      if (!this.ready() || !this.map) return;
+      if (!spot) {
+        this.carMarker?.remove();
+        return;
+      }
+      this.carMarker ??= new maplibregl.Marker({ element: dot('car-pin', '🚗') });
+      this.carMarker.setLngLat([spot.lon, spot.lat]).addTo(this.map);
+    });
+
+    // scelta del parcheggio sulla mappa: cursore a croce
+    effect(() => {
+      const picking = this.car.picking();
+      if (this.ready() && this.map) this.map.getCanvas().style.cursor = picking ? 'crosshair' : '';
     });
 
     // misura: si chiude da sola quando il GPS non è più in uso
@@ -579,6 +600,11 @@ export class MapView implements OnDestroy {
     });
 
     map.on('click', (e) => {
+      // "segna auto sulla mappa": il tocco segna il parcheggio, prima di ogni altra cosa
+      if (this.car.picking()) {
+        this.car.setAt({ lon: e.lngLat.lng, lat: e.lngLat.lat });
+        return;
+      }
       // un clic sulla linea del percorso non aggiunge tappe in fondo: la linea si trascina
       const onRoute = map.queryRenderedFeatures(e.point, { layers: ['route-hit'] }).length > 0;
 

@@ -3,7 +3,7 @@
 Documento per riprendere il lavoro da zero (nuovo account, nuovo assistente, nuovo PC).
 **Va aggiornato alla fine di ogni blocco di lavoro**: sezioni "Stato", "Prossimi passi" e "Registro".
 
-Ultimo aggiornamento: **2026-11-16** — GPS: fix della riga dritta dopo lo schermo spento, tappe bloccate in registrazione, misura verso un punto (vedi Registro).
+Ultimo aggiornamento: **2026-11-16** — "Torna alla macchina" (vedi Registro).
 
 ---
 
@@ -36,7 +36,7 @@ Requisiti: Node 22, npm 10, Angular CLI 20 (anche via `npx ng`). Sviluppato su W
 ## 3. Avvio, build, comandi utili
 
 ```bash
-npm start                                   # dev server su http://localhost:4200
+npm start                                   # dev server su http://localhost:4200 (se occupata da un altro progetto: npx ng serve --port 4300)
 npx ng build                                # build di produzione in dist/vertiplan
 node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml   # rigenera il layer SAT (vedi §6)
 ```
@@ -99,6 +99,7 @@ Struttura (`src/app/`):
 | `core/location.service.ts` | Posizione GPS condivisa (contatore di utilizzatori): browser `watchPosition` nella webapp, plugin `@capacitor-community/background-geolocation` nell'app. `fix` = ultima posizione (per la UI); `onFix()` = **ogni** posizione (per la registrazione, vedi §7) |
 | `core/recorder.service.ts` | Registrazione traccia: filtro precisione (≤35 m) e passo (≥5 m), stato salvato in `localStorage` (`vertiplan.recording.v1`) e ripreso in pausa dopo una chiusura |
 | `core/navigation.service.ts` | Navigazione lungo la traccia caricata: rimanente, avanzamento, fuori percorso (>50 m per 2 letture) |
+| `core/car.service.ts` | "Torna alla macchina": parcheggio salvato in `localStorage` (`vertiplan.car.v1`), ritorno sui sentieri / ripercorrendo la traccia / in linea retta, poi navigazione |
 | `gps-bar/` | Barra GPS sulla mappa: Registra / Pausa / Salva / Scarta, Naviga / Fine, Segui |
 | `map-view/` | Mappa: livelli, tappe, trascinamento linea, popup SAT, riquadro valanghe |
 | `map-view/sat-layer.ts`, `terrain-layers.ts`, `avalanche-layer.ts` | Definizioni dei layer; `terrain-layers` registra il protocollo `slope://` |
@@ -118,6 +119,11 @@ Struttura (`src/app/`):
     mostra segnaposto, linea tratteggiata e riquadro con **distanza in linea d'aria** e **dislivello** (quote dal modello
     del terreno); se posizione e punto sono sul percorso caricato (entro 80 m), anche km/↗/↘/tempo **lungo il percorso**
     (avanti o indietro). Si aggiorna camminando; ✕ per chiudere (lo scarto della registrazione usa 🗑, per non confonderli).
+  - **🚗 Torna alla macchina** (webapp e app): segna il parcheggio "Qui (GPS)" o "Sulla mappa" (all'avvio di una
+    registrazione l'app chiede "Segno qui l'auto?" se non ce n'è una delle ultime 12 h); segnaposto 🚗 sulla mappa;
+    il menu mostra distanza in linea d'aria e direzione (N/NE/…) e offre il ritorno **sui sentieri** (BRouter, serve rete;
+    se fallisce ripiega sulla linea retta e lo dice), **ripercorrendo la traccia** registrata (offline) o **in linea retta**.
+    Il percorso viene caricato come "Ritorno all'auto" e parte la navigazione; la registrazione continua.
   - **Naviga** (con un percorso caricato): km, salita, discesa e tempo **rimanenti**, barra di avanzamento, "sei qui" blu
     sull'altimetria, **avviso "Fuori percorso"** con vibrazione oltre 50 m; la mappa segue la posizione finché non la sposti
     ("⌖ Segui" per tornare).
@@ -193,6 +199,9 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
   deviazione per l'avviso). Sul Pixel: servizio in primo piano attivo (`dumpsys activity services`), posizioni ricevute
   anche a schermo spento. Sul campo la traccia a schermo spento veniva sostituita da una riga dritta: causa trovata e
   corretta (vedi §7), verificata nel browser con 60 posizioni consegnate in blocco (tutte registrate) → **da riprovare camminando**.
+- "Torna alla macchina": verificato nel browser con GPS simulato (domanda all'avvio, salvataggio, distanza/direzione,
+  ripercorri la traccia, sui sentieri, ripiego in linea retta senza rete, scelta sulla mappa); **non ancora sul telefono**.
+  Le "indicazioni" sono quelle della navigazione (niente svolte "a destra fra 200 m"): idea futura, svolte con i numeri SAT.
 - Misura verso un punto: verificata sul Pixel col GPS vero (408 m in linea d'aria, +3 m, nessuna tappa aggiunta);
   il caso "lungo il percorso" non è ancora stato provato sul campo.
 - Permesso di posizione: se l'utente sceglie **"Solo questa volta"** Android lo revoca in background e la registrazione a
@@ -217,7 +226,9 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 
 ## 9. Prossimi passi (in ordine di priorità suggerito)
 
-1. **Provare il GPS sul campo** (registrazione a schermo spento, navigazione), permesso notifiche su Android 13+.
+1. **Modalità semplificata** (decisa con l'utente: pulsanti grandi Registra / Torna all'auto / Naviga / Condividi posizione,
+   mappa a tutto schermo), poi **condividi posizione / emergenza** e **ora limite di rientro** (tramonto).
+   **Provare il GPS sul campo** (registrazione a schermo spento, navigazione), permesso notifiche su Android 13+.
    Poi **offline** (tappa 4: PMTiles per zona). Icona e splash dell'app da personalizzare.
 2. **Backend leggero**: account, sincronizzazione della libreria, condivisione di un percorso via link; **proxy per i WMS
    della Provincia** (ombreggiatura LiDAR, carta tecnica 2025, ortofoto), così funzionano sia nella webapp sia nell'app.
@@ -251,5 +262,6 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 | 2026-10-29 | `024f8b3` | App rinominata da Crinalia a **VertiPlan**; repo pubblicato su github.com/teomobile/VertiPlan |
 | 2026-10-29 | `7b88148` | App Android con Capacitor 8.6 (JDK 21), provata su Pixel 8a; altimetria leggibile e livelli in griglia su telefono; pressione prolungata funzionante nella WebView |
 | 2026-10-30 | `003ceb0` | Handoff: webapp e app allineate nel limite del possibile; WMS della Provincia |
+| 2026-11-16 | (questo commit) | "Torna alla macchina": parcheggio, ritorno sui sentieri / sulla traccia / in linea retta con navigazione |
 | 2026-11-16 | `a7fb373` | GPS: corretta la riga dritta dopo lo schermo spento (posizioni consegnate una per una), tappe bloccate durante la registrazione, misura di distanza e dislivello verso un punto toccato |
 | 2026-10-30 | `5577465` | GPS: registrazione traccia e navigazione con avviso fuori percorso (webapp e app, in background solo app); corretto `pointAtDistance` sui tratti di traccia |
