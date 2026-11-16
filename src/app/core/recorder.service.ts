@@ -1,4 +1,4 @@
-import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { buildTrack, computeStats, haversineKm } from './geo';
 import { GeoFix, LocationService } from './location.service';
 import { RouteStore } from './route-store';
@@ -13,6 +13,7 @@ const STORAGE_KEY = 'vertiplan.recording.v1';
 const MAX_ACCURACY_M = 35;
 /** Distanza minima tra due punti registrati (m): filtra il "tremolio" del GPS da fermi. */
 const MIN_STEP_M = 5;
+const PERSIST_EVERY_MS = 3000;
 
 interface Saved {
   state: RecorderState;
@@ -49,9 +50,12 @@ export class RecorderService {
   constructor() {
     this.restore();
 
-    effect(() => {
-      const fix = this.location.fix();
-      if (fix && this.state() === 'recording') untracked(() => this.add(fix));
+    // durante la registrazione le tappe del percorso non si toccano
+    effect(() => this.store.editLocked.set(this.state() !== 'idle'));
+
+    // ogni posizione, non solo l'ultima: alla riaccensione dello schermo arrivano tutte insieme
+    this.location.onFix((fix) => {
+      if (this.state() === 'recording') this.add(fix);
     });
   }
 
@@ -87,8 +91,7 @@ export class RecorderService {
     this.pause();
     const pts = this.points();
     this.state.set('idle');
-    clearInterval(this.ticker);
-    localStorage.removeItem(STORAGE_KEY);
+    this.clearStorage();
     await this.location.release('registrazione');
     if (pts.length < 2) return;
 
@@ -112,9 +115,16 @@ export class RecorderService {
   async discard(): Promise<void> {
     this.state.set('idle');
     this.points.set([]);
-    clearInterval(this.ticker);
-    localStorage.removeItem(STORAGE_KEY);
+    this.clearStorage();
     await this.location.release('registrazione');
+  }
+
+  /** Fine registrazione: niente più orologio né salvataggi di sicurezza (anche quelli già programmati). */
+  private clearStorage(): void {
+    clearInterval(this.ticker);
+    clearTimeout(this.persistTimer);
+    this.persistTimer = undefined;
+    localStorage.removeItem(STORAGE_KEY);
   }
 
   private add(fix: GeoFix): void {
@@ -122,8 +132,21 @@ export class RecorderService {
     const pts = this.points();
     const last = pts[pts.length - 1];
     if (last && haversineKm({ lon: last[0], lat: last[1] }, fix) * 1000 < MIN_STEP_M) return;
+    // posizioni arrivate in ritardo (dopo la riaccensione) vanno comunque in ordine di tempo
+    if (last && fix.time < last[3]) return;
     this.points.set([...pts, [fix.lon, fix.lat, fix.altitude ?? NaN, fix.time]]);
-    this.persist();
+    this.persistSoon();
+  }
+
+  private persistTimer?: ReturnType<typeof setTimeout>;
+
+  /** Salvataggio di sicurezza al massimo ogni pochi secondi: a raffiche di centinaia di punti, uno per punto è troppo. */
+  private persistSoon(): void {
+    if (this.persistTimer) return;
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = undefined;
+      this.persist();
+    }, PERSIST_EVERY_MS);
   }
 
   private startTicker(): void {

@@ -3,7 +3,7 @@
 Documento per riprendere il lavoro da zero (nuovo account, nuovo assistente, nuovo PC).
 **Va aggiornato alla fine di ogni blocco di lavoro**: sezioni "Stato", "Prossimi passi" e "Registro".
 
-Ultimo aggiornamento: **2026-10-30** — GPS: registrazione traccia e navigazione (vedi Registro).
+Ultimo aggiornamento: **2026-11-16** — GPS: fix della riga dritta dopo lo schermo spento, tappe bloccate in registrazione, misura verso un punto (vedi Registro).
 
 ---
 
@@ -96,7 +96,7 @@ Struttura (`src/app/`):
 | `core/recommended-routes.service.ts` | Percorsi segnati OSM (API Waymarked Trails) |
 | `core/avalanche.service.ts` | Bollettino Euregio CAAML v6 + microzone EAWS (stato condiviso, point-in-polygon) |
 | `core/route-analysis.service.ts` | Inclinazione del terreno e pericolo valanghe lungo il percorso |
-| `core/location.service.ts` | Posizione GPS condivisa (contatore di utilizzatori): browser `watchPosition` nella webapp, plugin `@capacitor-community/background-geolocation` nell'app |
+| `core/location.service.ts` | Posizione GPS condivisa (contatore di utilizzatori): browser `watchPosition` nella webapp, plugin `@capacitor-community/background-geolocation` nell'app. `fix` = ultima posizione (per la UI); `onFix()` = **ogni** posizione (per la registrazione, vedi §7) |
 | `core/recorder.service.ts` | Registrazione traccia: filtro precisione (≤35 m) e passo (≥5 m), stato salvato in `localStorage` (`vertiplan.recording.v1`) e ripreso in pausa dopo una chiusura |
 | `core/navigation.service.ts` | Navigazione lungo la traccia caricata: rimanente, avanzamento, fuori percorso (>50 m per 2 letture) |
 | `gps-bar/` | Barra GPS sulla mappa: Registra / Pausa / Salva / Scarta, Naviga / Fine, Segui |
@@ -113,6 +113,11 @@ Struttura (`src/app/`):
   - **Registra**: tempo, km, salita in tempo reale; linea blu sulla mappa; Pausa/Riprendi; **Salva** → in "I miei percorsi"
     come "Registrazione <data>" (origine "Registrata col GPS"), quote sostituite dal modello del terreno; ✕ per scartare.
     Se l'app/pagina si chiude, la registrazione ricompare **in pausa**.
+    Durante la registrazione le **tappe sono bloccate** (niente aggiunte/modifiche: mappa, ricerca, trascinamenti, riordino).
+  - **Misura verso un punto** (con GPS attivo, registrazione o navigazione): un tocco sulla mappa non aggiunge tappe ma
+    mostra segnaposto, linea tratteggiata e riquadro con **distanza in linea d'aria** e **dislivello** (quote dal modello
+    del terreno); se posizione e punto sono sul percorso caricato (entro 80 m), anche km/↗/↘/tempo **lungo il percorso**
+    (avanti o indietro). Si aggiorna camminando; ✕ per chiudere (lo scarto della registrazione usa 🗑, per non confonderli).
   - **Naviga** (con un percorso caricato): km, salita, discesa e tempo **rimanenti**, barra di avanzamento, "sei qui" blu
     sull'altimetria, **avviso "Fuori percorso"** con vibrazione oltre 50 m; la mappa segue la posizione finché non la sposti
     ("⌖ Segui" per tornare).
@@ -173,6 +178,9 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 - **Limite del bosco** del bollettino stimato a **2000 m** nei calcoli lungo il percorso (dichiarato nell'interfaccia).
 - **Pendenze dell'altimetria su tratti ≥ 100 m**: più corti seguirebbero il rumore del DEM.
 - Percorsi con biforcazioni (Waymarked): "Usa come percorso" prende il ramo di andata.
+- **Registrazione GPS: mai leggere le posizioni da un signal/effect.** A schermo spento Android congela la WebView;
+  alla riaccensione le posizioni raccolte dal servizio nativo arrivano tutte insieme e un signal ne conserva una sola
+  (era la "riga dritta" dopo lo schermo spento, segnalata dall'utente il 2026-11-16). Il registratore usa `LocationService.onFix()`.
 - **Webapp e app Android allineate, nel limite del possibile** (decisione dell'utente, 2026-10-30): una funzionalità va
   in entrambe; solo nell'app quando il browser proprio non lo permette (es. registrazione GPS in background, mappe offline
   sul telefono). Se nella webapp è fattibile con un po' di lavoro in più, si aspetta di farla in entrambe.
@@ -183,7 +191,10 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 
 - GPS nella webapp verificato con **posizioni simulate** (finto `navigator.geolocation` che percorre la traccia, con una
   deviazione per l'avviso). Sul Pixel: servizio in primo piano attivo (`dumpsys activity services`), posizioni ricevute
-  anche a schermo spento, ma la prova è stata breve (7 s a schermo spento, telefono fermo) → **manca una prova camminando**.
+  anche a schermo spento. Sul campo la traccia a schermo spento veniva sostituita da una riga dritta: causa trovata e
+  corretta (vedi §7), verificata nel browser con 60 posizioni consegnate in blocco (tutte registrate) → **da riprovare camminando**.
+- Misura verso un punto: verificata sul Pixel col GPS vero (408 m in linea d'aria, +3 m, nessuna tappa aggiunta);
+  il caso "lungo il percorso" non è ancora stato provato sul campo.
 - Permesso di posizione: se l'utente sceglie **"Solo questa volta"** Android lo revoca in background e la registrazione a
   schermo spento si può interrompere → scegliere **"Mentre usi l'app"** (basta, grazie al servizio in primo piano).
 - Il permesso notifiche (Android 13+) ora viene chiesto all'avvio del GPS con `@capacitor/local-notifications`:
@@ -240,4 +251,5 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 | 2026-10-29 | `024f8b3` | App rinominata da Crinalia a **VertiPlan**; repo pubblicato su github.com/teomobile/VertiPlan |
 | 2026-10-29 | `7b88148` | App Android con Capacitor 8.6 (JDK 21), provata su Pixel 8a; altimetria leggibile e livelli in griglia su telefono; pressione prolungata funzionante nella WebView |
 | 2026-10-30 | `003ceb0` | Handoff: webapp e app allineate nel limite del possibile; WMS della Provincia |
+| 2026-11-16 | (questo commit) | GPS: corretta la riga dritta dopo lo schermo spento (posizioni consegnate una per una), tappe bloccate durante la registrazione, misura di distanza e dislivello verso un punto toccato |
 | 2026-10-30 | `5577465` | GPS: registrazione traccia e navigazione con avviso fuori percorso (webapp e app, in background solo app); corretto `pointAtDistance` sui tratti di traccia |

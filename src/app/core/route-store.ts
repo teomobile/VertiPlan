@@ -67,6 +67,8 @@ export class RouteStore {
   readonly fitBoundsRequest = signal<[number, number, number, number] | null>(null);
   /** Percorso consigliato evidenziato in mappa. */
   readonly recommended = signal<RouteDetails | null>(null);
+  /** Tappe bloccate (es. durante la registrazione col GPS): niente aggiunte né modifiche. */
+  readonly editLocked = signal(false);
 
   readonly stats = computed(() => computeStats(this.track()));
   readonly selectionStats = computed(() => {
@@ -107,6 +109,7 @@ export class RouteStore {
 
   /** Aggiunge una tappa in fondo. Senza nome (clic sulla mappa) lo cerca col geocoding inverso. */
   addWaypoint(p: Waypoint): void {
+    if (this.locked()) return;
     this.ensurePlanMode();
     this.waypoints.update((w) => [...w, p]);
     if (!p.name) this.autoName(p);
@@ -114,6 +117,7 @@ export class RouteStore {
 
   /** Sostituisce una tappa (es. scelta da una ricerca testuale). */
   replaceWaypoint(i: number, p: Waypoint): void {
+    if (this.locked()) return;
     this.waypoints.update((w) => w.map((x, k) => (k === i ? p : x)));
     if (!p.name) this.autoName(p);
   }
@@ -124,11 +128,13 @@ export class RouteStore {
   }
 
   removeWaypoint(i: number): void {
+    if (this.locked()) return;
     this.waypoints.update((w) => w.filter((_, k) => k !== i));
   }
 
   /** Inserisce una tappa in posizione i (es. trascinando la linea del percorso). */
   insertWaypoint(i: number, p: LngLat): void {
+    if (this.locked()) return;
     const wp: Waypoint = { lon: p.lon, lat: p.lat };
     this.waypoints.update((w) => [...w.slice(0, i), wp, ...w.slice(i)]);
     this.autoName(wp);
@@ -143,6 +149,7 @@ export class RouteStore {
 
   /** Scambia una tappa con la precedente (dir -1) o la successiva (dir 1). */
   shiftWaypoint(i: number, dir: -1 | 1): void {
+    if (this.locked()) return;
     const j = i + dir;
     this.waypoints.update((w) => {
       if (j < 0 || j >= w.length) return w;
@@ -152,15 +159,24 @@ export class RouteStore {
     });
   }
 
+  /** true se le tappe sono bloccate; in quel caso lo spiega all'utente. */
+  private locked(): boolean {
+    if (!this.editLocked()) return false;
+    this.notice.set('Registrazione in corso: le tappe sono bloccate');
+    return true;
+  }
+
   flyTo(p: LngLat): void {
     this.flyRequest.set({ ...p });
   }
 
   undo(): void {
+    if (this.locked()) return;
     this.waypoints.update((w) => w.slice(0, -1));
   }
 
   reverse(): void {
+    if (this.locked()) return;
     if (this.mode() === 'plan') this.waypoints.update((w) => [...w].reverse());
     else this.setTrack([...this.track()].reverse().map((p) => [p.lon, p.lat, p.ele ?? NaN]));
   }

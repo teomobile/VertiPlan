@@ -325,3 +325,53 @@
   right: 60px;
   bottom: 40px;
 }
+
+// misura dalla posizione GPS a un punto toccato (proiettata dentro la barra GPS)
+.measure {
+  min-width: 240px;
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+
+    button {
+      border: 0;
+      background: none;
+      padding: 2px 6px;
+      font-size: 14px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+  }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+    align-items: baseline;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .big {
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .muted {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .along {
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+}

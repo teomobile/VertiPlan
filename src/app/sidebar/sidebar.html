@@ -161,7 +161,7 @@
             />
             <button type="button" class="icon" (click)="editing.set(null)" title="Annulla">✕</button>
           } @else {
-            <button type="button" class="wp-name" (click)="editing.set(i)" title="Clicca per cercare un altro luogo">
+            <button type="button" class="wp-name" (click)="!store.editLocked() && editing.set(i)" title="Clicca per cercare un altro luogo">
               @if (w.name) {
                 {{ w.name }}
               } @else {
@@ -169,18 +169,22 @@
               }
             </button>
             <span class="row-actions">
-              <button type="button" class="icon" (click)="store.shiftWaypoint(i, -1)" [disabled]="first" title="Sposta su">↑</button>
-              <button type="button" class="icon" (click)="store.shiftWaypoint(i, 1)" [disabled]="last" title="Sposta giù">↓</button>
-              <button type="button" class="icon danger" (click)="store.removeWaypoint(i)" title="Elimina tappa">✕</button>
+              <button type="button" class="icon" (click)="store.shiftWaypoint(i, -1)" [disabled]="first || store.editLocked()" title="Sposta su">↑</button>
+              <button type="button" class="icon" (click)="store.shiftWaypoint(i, 1)" [disabled]="last || store.editLocked()" title="Sposta giù">↓</button>
+              <button type="button" class="icon danger" (click)="store.removeWaypoint(i)" [disabled]="store.editLocked()" title="Elimina tappa">✕</button>
             </span>
           }
         </li>
       }
     </ol>
-    <app-place-search
-      [placeholder]="store.waypoints().length ? 'Aggiungi tappa: luogo o lat, lon' : 'Partenza: luogo o lat, lon'"
-      (picked)="onAdd($event)"
-    />
+    @if (store.editLocked()) {
+      <p class="note">Registrazione in corso: le tappe sono bloccate. Tocca la mappa per misurare distanza e dislivello.</p>
+    } @else {
+      <app-place-search
+        [placeholder]="store.waypoints().length ? 'Aggiungi tappa: luogo o lat, lon' : 'Partenza: luogo o lat, lon'"
+        (picked)="onAdd($event)"
+      />
+    }
     @if (store.waypoints().length < 2) {
       <p class="note">
         Scrivi un rifugio, una cima, un paese o delle coordinate, oppure clicca sulla mappa. Trascina i punti per
@@ -191,8 +195,8 @@
 }
 
 <section class="actions">
-  <button type="button" (click)="store.undo()" [disabled]="store.mode() !== 'plan' || !store.waypoints().length">Annulla ultima</button>
-  <button type="button" (click)="store.reverse()" [disabled]="store.track().length < 2">Inverti</button>
+  <button type="button" (click)="store.undo()" [disabled]="store.mode() !== 'plan' || !store.waypoints().length || store.editLocked()">Annulla ultima</button>
+  <button type="button" (click)="store.reverse()" [disabled]="store.track().length < 2 || store.editLocked()">Inverti</button>
   <button type="button" (click)="store.clear()">Cancella tutto</button>
 </section>
 

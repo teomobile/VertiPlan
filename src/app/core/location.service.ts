@@ -31,6 +31,23 @@ export class LocationService {
 
   /** Chi sta usando il GPS (es. "registrazione", "navigazione"): si spegne quando non serve più a nessuno. */
   private users = new Set<string>();
+  /**
+   * Ricevono OGNI posizione, una per una. Il signal `fix` tiene solo l'ultima: a schermo spento Android
+   * congela la WebView e alla riaccensione le posizioni accumulate arrivano tutte insieme; chi legge solo
+   * `fix` (es. un effect) ne vedrebbe una sola. La registrazione deve usare questi listener.
+   */
+  private listeners = new Set<(fix: GeoFix) => void>();
+
+  /** Registra una funzione chiamata per ogni posizione; restituisce la funzione per toglierla. */
+  onFix(listener: (fix: GeoFix) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private emit(fix: GeoFix): void {
+    this.fix.set(fix);
+    for (const l of this.listeners) l(fix);
+  }
   private browserWatch: number | null = null;
   private nativeWatch: string | null = null;
 
@@ -66,7 +83,7 @@ export class LocationService {
             return;
           }
           if (!location) return;
-          this.fix.set({
+          this.emit({
             lon: location.longitude,
             lat: location.latitude,
             accuracy: location.accuracy,
@@ -85,7 +102,7 @@ export class LocationService {
     }
     this.browserWatch = navigator.geolocation.watchPosition(
       (p) =>
-        this.fix.set({
+        this.emit({
           lon: p.coords.longitude,
           lat: p.coords.latitude,
           accuracy: p.coords.accuracy,

@@ -22,7 +22,18 @@ import maplibregl, {
   Point,
   StyleSpecification,
 } from 'maplibre-gl';
-import { pointAtDistance, sliceTrack, slopeAngleClass, TrackPoint, Waypoint } from '../core/geo';
+import {
+  buildTrack,
+  computeStats,
+  formatDuration,
+  haversineKm,
+  LngLat as GeoLngLat,
+  pointAtDistance,
+  sliceTrack,
+  slopeAngleClass,
+  TrackPoint,
+  Waypoint,
+} from '../core/geo';
 import { RouteAnalysisService } from '../core/route-analysis.service';
 import { LocationService } from '../core/location.service';
 import { NavigationService } from '../core/navigation.service';
@@ -52,6 +63,19 @@ const BASE_LAYERS: { id: BaseLayer; label: string }[] = [
 ];
 
 const START_CENTER: [number, number] = [11.12, 46.07]; // Trento
+/** Misura: posizione e punto scelto entro questa distanza dal percorso contano come "sul percorso" (m). */
+const ON_ROUTE_M = 80;
+
+/** Risultato della misura dalla posizione GPS a un punto toccato. */
+interface MeasureInfo {
+  waiting: boolean;
+  straightKm: number;
+  /** Dislivello punto − posizione (m), dal modello del terreno. */
+  dEle: number | null;
+  targetEle: number | null;
+  along: { km: number; ascent: number; descent: number; durationMin: number; behind: boolean } | null;
+}
+
 /** Tocco: quanto tenere premuto sulla linea del percorso prima di poterla trascinare. */
 const LONG_PRESS_MS = 400;
 
@@ -94,6 +118,7 @@ const STYLE: StyleSpecification = {
     'route-steep': { type: 'geojson', data: emptyLine() },
     recorded: { type: 'geojson', data: emptyLine() },
     'me-accuracy': { type: 'geojson', data: emptyLine() },
+    measure: { type: 'geojson', data: emptyLine() },
   },
   layers: [
     { id: 'osm', type: 'raster', source: 'osm' },
@@ -168,6 +193,14 @@ const STYLE: StyleSpecification = {
       source: 'me-accuracy',
       paint: { 'fill-color': '#228be6', 'fill-opacity': 0.15, 'fill-outline-color': '#228be6' },
     },
+    // misura dalla posizione GPS a un punto toccato
+    {
+      id: 'measure-line',
+      type: 'line',
+      source: 'measure',
+      layout: { 'line-cap': 'round' },
+      paint: { 'line-color': '#212529', 'line-width': 2.5, 'line-dasharray': [2, 2] },
+    },
     {
       id: 'drag-preview',
       type: 'line',
@@ -233,6 +266,12 @@ export class MapView implements OnDestroy {
   protected readonly follow = signal(true);
   private meMarker?: Marker;
   private readonly gpsBusy = computed(() => this.recorder.state() !== 'idle' || this.nav.active());
+  /** Punto toccato con il GPS attivo: se ne misurano distanza e dislivello dalla posizione attuale. */
+  protected readonly measureTarget = signal<GeoLngLat | null>(null);
+  protected readonly measure = signal<MeasureInfo | null>(null);
+  protected readonly formatDuration = formatDuration;
+  private measurePin?: Marker;
+  private measureToken = 0;
 
   protected readonly showAvalanche = signal(false);
   /** Pannello livelli aperto (conta solo su telefono, sul desktop è sempre visibile). */
@@ -335,6 +374,36 @@ export class MapView implements OnDestroy {
       }
     });
 
+    // misura: si chiude da sola quando il GPS non è più in uso
+    effect(() => {
+      if (!this.gpsBusy()) this.measureTarget.set(null);
+    });
+
+    effect(() => {
+      const target = this.measureTarget();
+      const fix = this.location.fix();
+      const track = this.store.track();
+      if (!this.ready() || !this.map) return;
+      if (!target) {
+        this.measurePin?.remove();
+        this.source('measure').setData(emptyLine());
+        this.measure.set(null);
+        return;
+      }
+      this.measurePin ??= new maplibregl.Marker({ element: dot('measure-pin'), anchor: 'bottom' });
+      this.measurePin.setLngLat([target.lon, target.lat]).addTo(this.map);
+      if (!fix) {
+        this.measure.set({ waiting: true, straightKm: 0, dEle: null, targetEle: null, along: null });
+        return;
+      }
+      this.source('measure').setData({
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'LineString', coordinates: [[fix.lon, fix.lat], [target.lon, target.lat]] },
+      });
+      untracked(() => this.computeMeasure(fix, target, track));
+    });
+
     // tratti su terreno ripido, raggruppati per classe di inclinazione
     effect(() => {
       const samples = this.analysis.samples();
@@ -372,8 +441,9 @@ export class MapView implements OnDestroy {
     // tappe
     effect(() => {
       const wps = this.store.waypoints();
+      const locked = this.store.editLocked();
       if (!this.ready()) return;
-      this.renderWaypoints(wps);
+      this.renderWaypoints(wps, locked);
     });
 
     // posizione evidenziata (da mappa o da profilo)
@@ -512,6 +582,12 @@ export class MapView implements OnDestroy {
       // un clic sulla linea del percorso non aggiunge tappe in fondo: la linea si trascina
       const onRoute = map.queryRenderedFeatures(e.point, { layers: ['route-hit'] }).length > 0;
 
+      // con il GPS attivo un tocco non aggiunge tappe: misura distanza e dislivello da dove sei a quel punto
+      if (this.gpsBusy()) {
+        this.measureTarget.set({ lon: e.lngLat.lng, lat: e.lngLat.lat });
+        return;
+      }
+
       if (this.touchMode) {
         // senza mouse non c'è il "passaggio": le informazioni arrivano al tocco
         if (this.showAvalanche()) {
@@ -536,7 +612,7 @@ export class MapView implements OnDestroy {
     map.on('mousemove', 'route-hit', (e) => {
       const dist = this.distanceAlongTrack(e.lngLat.lng, e.lngLat.lat);
       if (dist == null) return;
-      if (!this.drag) map.getCanvas().style.cursor = this.store.mode() === 'plan' ? 'grab' : 'crosshair';
+      if (!this.drag) map.getCanvas().style.cursor = this.store.mode() === 'plan' && !this.store.editLocked() ? 'grab' : 'crosshair';
       this.store.hover.set({ dist, source: 'map' });
     });
 
@@ -548,7 +624,7 @@ export class MapView implements OnDestroy {
     // trascinando la linea del percorso si inserisce una tappa nel tratto corrispondente
     map.on('mousedown', 'route-hit', (e) => {
       const wps = this.store.waypoints();
-      if (this.store.mode() !== 'plan' || wps.length < 2 || e.originalEvent.button !== 0) return;
+      if (this.store.mode() !== 'plan' || this.store.editLocked() || wps.length < 2 || e.originalEvent.button !== 0) return;
       const dist = this.distanceAlongTrack(e.lngLat.lng, e.lngLat.lat);
       if (dist == null) return;
       e.preventDefault(); // niente spostamento della mappa durante il trascinamento
@@ -575,7 +651,7 @@ export class MapView implements OnDestroy {
 
     // al tocco: tieni premuto sulla linea, poi trascina (un trascinamento normale sposta la mappa)
     map.on('touchstart', 'route-hit', (e) => {
-      if (this.store.mode() !== 'plan' || this.store.waypoints().length < 2 || e.points.length !== 1) return;
+      if (this.store.mode() !== 'plan' || this.store.editLocked() || this.store.waypoints().length < 2 || e.points.length !== 1) return;
       const dist = this.distanceAlongTrack(e.lngLat.lng, e.lngLat.lat);
       if (dist == null) return;
       const start = e.point;
@@ -695,7 +771,7 @@ export class MapView implements OnDestroy {
   private showSatTap(map: MlMap, props: SatProps, at: { lng: number; lat: number }): void {
     const el = document.createElement('div');
     el.innerHTML = satTooltipHtml(props);
-    if (this.store.mode() === 'plan') {
+    if (this.store.mode() === 'plan' && !this.store.editLocked()) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'sat-add';
@@ -708,6 +784,44 @@ export class MapView implements OnDestroy {
     }
     map.setFilter('sat-highlight', ['==', ['get', 'numero'], props.numero]);
     this.satTapPopup.setLngLat(at).setDOMContent(el).addTo(map);
+  }
+
+  /**
+   * Distanza e dislivello dalla posizione al punto scelto; se entrambi stanno sul percorso caricato,
+   * anche distanza, salita, discesa e tempo lungo il percorso (in avanti o all'indietro).
+   */
+  private async computeMeasure(fix: GeoLngLat, target: GeoLngLat, track: TrackPoint[]): Promise<void> {
+    const token = ++this.measureToken;
+    let along: MeasureInfo['along'] = null;
+    if (track.length > 1) {
+      const line = lineString(track.map((p) => [p.lon, p.lat]));
+      const nf = nearestPointOnLine(line, point([fix.lon, fix.lat]), { units: 'kilometers' });
+      const nt = nearestPointOnLine(line, point([target.lon, target.lat]), { units: 'kilometers' });
+      if (nf.properties.dist * 1000 <= ON_ROUTE_M && nt.properties.dist * 1000 <= ON_ROUTE_M) {
+        const a = track[0].dist + nf.properties.location;
+        const b = track[0].dist + nt.properties.location;
+        let part = sliceTrack(track, Math.min(a, b), Math.max(a, b));
+        // punto alle spalle: il tratto si percorre al contrario (salita e discesa si scambiano)
+        if (b < a) part = buildTrack(part.reverse().map((p) => [p.lon, p.lat, p.ele ?? NaN]));
+        const st = computeStats(part);
+        along = { km: st.distanceKm, ascent: st.ascent, descent: st.descent, durationMin: st.durationMin, behind: b < a };
+      }
+    }
+    const prev = this.measure();
+    this.measure.set({
+      waiting: false,
+      straightKm: haversineKm(fix, target),
+      // la quota resta quella di prima finché non arriva il nuovo calcolo
+      dEle: prev?.dEle ?? null,
+      targetEle: prev?.targetEle ?? null,
+      along,
+    });
+    const [p1, p2] = await this.elevation.fill([
+      [fix.lon, fix.lat],
+      [target.lon, target.lat],
+    ]).catch(() => [[0, 0, NaN], [0, 0, NaN]]);
+    if (token !== this.measureToken || !Number.isFinite(p1[2]) || !Number.isFinite(p2[2])) return;
+    this.measure.update((m) => m && { ...m, dEle: p2[2] - p1[2], targetEle: p2[2] });
   }
 
   /** Distanza progressiva (km) del punto della traccia più vicino a lon/lat. */
@@ -725,18 +839,20 @@ export class MapView implements OnDestroy {
     this.map?.setFilter('sat-highlight', ['==', ['get', 'numero'], '']);
   }
 
-  private renderWaypoints(wps: Waypoint[]): void {
+  /** locked: tappe bloccate (registrazione in corso), non si trascinano né si eliminano. */
+  private renderWaypoints(wps: Waypoint[], locked: boolean): void {
     this.waypointMarkers.forEach((m) => m.remove());
     this.waypointMarkers = wps.map((w, i) => {
       const kind = i === 0 ? 'start' : i === wps.length - 1 ? 'end' : 'via';
       const el = dot(`wp wp-${kind}`, kind === 'via' ? String(i) : '');
-      el.title = `${w.name ? w.name + '\n' : ''}Trascina per spostare · doppio clic per eliminare`;
+      el.title = locked ? (w.name ?? '') : `${w.name ? w.name + '\n' : ''}Trascina per spostare · doppio clic per eliminare`;
+      if (locked) el.style.cursor = 'default';
       el.addEventListener('click', (e) => e.stopPropagation());
       el.addEventListener('dblclick', (e) => {
         e.stopPropagation();
         this.store.removeWaypoint(i);
       });
-      const marker = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([w.lon, w.lat]).addTo(this.map!);
+      const marker = new maplibregl.Marker({ element: el, draggable: !locked }).setLngLat([w.lon, w.lat]).addTo(this.map!);
       marker.on('dragend', () => {
         const ll = marker.getLngLat();
         this.store.moveWaypoint(i, { lon: ll.lng, lat: ll.lat });

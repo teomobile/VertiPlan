@@ -130,7 +130,37 @@
   <button type="button" class="fit" (click)="fitTrack()" title="Inquadra il percorso">⤢</button>
 }
 
-<app-gps-bar class="gps" [following]="follow()" (recenter)="follow.set(true)" />
+<app-gps-bar class="gps" [following]="follow()" (recenter)="follow.set(true)">
+  @if (measure(); as m) {
+    <div class="measure">
+      <header>
+        <strong>Punto selezionato</strong>
+        <button type="button" (click)="measureTarget.set(null)" title="Chiudi">✕</button>
+      </header>
+      @if (m.waiting) {
+        <span class="muted">In attesa del GPS…</span>
+      } @else {
+        <div class="row">
+          <span class="big">{{ m.straightKm < 1 ? (m.straightKm * 1000).toFixed(0) + ' m' : m.straightKm.toFixed(2) + ' km' }}</span>
+          <span class="muted">in linea d'aria</span>
+          @if (m.dEle != null) {
+            <span class="big">{{ m.dEle >= 0 ? '+' : '−' }}{{ (m.dEle < 0 ? -m.dEle : m.dEle).toFixed(0) }} m</span>
+            <span class="muted">dislivello (quota {{ m.targetEle?.toFixed(0) }} m)</span>
+          }
+        </div>
+        @if (m.along; as a) {
+          <div class="along">
+            Lungo il percorso{{ a.behind ? ' (indietro)' : '' }}:
+            <b>{{ a.km < 1 ? (a.km * 1000).toFixed(0) + ' m' : a.km.toFixed(2) + ' km' }}</b>
+            · ↗ {{ a.ascent.toFixed(0) }} m · ↘ {{ a.descent.toFixed(0) }} m · {{ formatDuration(a.durationMin) }}
+          </div>
+        } @else {
+          <div class="muted">Punto fuori dal percorso caricato: distanza in linea d'aria.</div>
+        }
+      }
+    </div>
+  }
+</app-gps-bar>
 
 @if (dragging()) {
   <div class="drop">Rilascia il file GPX</div>
