@@ -1,6 +1,39 @@
 <!-- schede aggiunte dalla mappa (es. misura verso un punto) -->
 <ng-content />
 
+@if (position(); as p) {
+  <div class="card pos">
+    <div class="row">
+      <b>📍 La mia posizione</b>
+      <button type="button" class="close" (click)="closePosition()" title="Chiudi">✕</button>
+    </div>
+    <div class="coords">{{ p.fix.lat.toFixed(5) }}, {{ p.fix.lon.toFixed(5) }}</div>
+    <div class="dms">{{ toDms(p.fix.lat, 'N', 'S') }} · {{ toDms(p.fix.lon, 'E', 'O') }}</div>
+    <div class="muted">
+      precisione ±{{ p.fix.accuracy.toFixed(0) }} m
+      @if (p.ele != null) { · quota {{ p.ele.toFixed(0) }} m }
+      · ore {{ time(p.fix.time) }}
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" (click)="sharePosition()">Condividi</button>
+      <button type="button" (click)="sharePosition(true)">Copia</button>
+      <button type="button" (click)="showPosition()" [disabled]="positionBusy()">Aggiorna</button>
+    </div>
+    @if (positionMsg(); as msg) {
+      <div class="muted">{{ msg }}</div>
+    }
+  </div>
+} @else if (positionBusy()) {
+  <div class="card pos"><span class="muted">📍 Cerco la posizione…</span></div>
+} @else if (positionMsg(); as msg) {
+  <div class="card pos">
+    <div class="row">
+      <span>{{ msg }}</span>
+      <button type="button" class="close" (click)="positionMsg.set(null)" title="Chiudi">✕</button>
+    </div>
+  </div>
+}
+
 @if (car.picking()) {
   <div class="card car">
     <div class="row"><b>🚗 Tocca la mappa dove hai parcheggiato</b></div>
@@ -110,10 +143,13 @@
       <button type="button" (click)="recorder.resume()">⏵ Riprendi</button>
     }
     <button type="button" class="primary" (click)="recorder.stop()" [disabled]="recorder.points().length < 2">■ Salva</button>
-    @if (confirmDiscard()) {
-      <button type="button" class="danger" (click)="discard()">Scarta davvero</button>
-    } @else {
-      <button type="button" class="icon" (click)="confirmDiscard.set(true)" title="Scarta la registrazione">🗑</button>
+    <!-- in modalità semplice niente cestino: coi guanti è troppo facile scartare per sbaglio -->
+    @if (!ui.simple()) {
+      @if (confirmDiscard()) {
+        <button type="button" class="danger" (click)="discard()">Scarta davvero</button>
+      } @else {
+        <button type="button" class="icon" (click)="confirmDiscard.set(true)" title="Scarta la registrazione">🗑</button>
+      }
     }
   }
 
@@ -125,6 +161,10 @@
 
   <button type="button" [class.active]="carMenu()" (click)="carMenu.set(!carMenu())" [title]="car.car() ? 'Torna alla macchina' : 'Segna dove hai parcheggiato'">
     🚗 @if (car.car()) { Torna all'auto } @else { Segna auto }
+  </button>
+
+  <button type="button" (click)="position() ? closePosition() : showPosition()" [class.active]="!!position()" title="Coordinate da dettare o condividere">
+    📍 Posizione
   </button>
 
   @if (busy() && !following()) {

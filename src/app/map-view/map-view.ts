@@ -40,6 +40,7 @@ import { NavigationService } from '../core/navigation.service';
 import { RecorderService } from '../core/recorder.service';
 import { GpsBar } from '../gps-bar/gps-bar';
 import { CarService } from '../core/car.service';
+import { UiModeService } from '../core/ui-mode.service';
 import { RouteStore } from '../core/route-store';
 import {
   GLYPHS_URL,
@@ -239,6 +240,7 @@ function toLine(points: TrackPoint[]): GeoJSON.FeatureCollection {
   templateUrl: './map-view.html',
   styleUrl: './map-view.scss',
   host: {
+    '[class.simple]': 'ui.simple()',
     '(dragover)': 'onDragOver($event)',
     '(dragleave)': 'dragging.set(false)',
     '(drop)': 'onDrop($event)',
@@ -264,6 +266,7 @@ export class MapView implements OnDestroy {
   private recorder = inject(RecorderService);
   private nav = inject(NavigationService);
   private car = inject(CarService);
+  protected ui = inject(UiModeService);
   private carMarker?: Marker;
   /** La mappa segue la posizione durante registrazione/navigazione, finché l'utente non la sposta. */
   protected readonly follow = signal(true);

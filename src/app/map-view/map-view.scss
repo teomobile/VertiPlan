@@ -93,7 +93,7 @@
     color: var(--text);
   }
 
-  .panel:not(.open) > :not(.panel-toggle) {
+  .panel:not(.open) > :not(.panel-head) {
     display: none;
   }
 
@@ -275,7 +275,7 @@
     overflow-y: auto;
   }
 
-  .panel-toggle {
+  .panel-head {
     align-self: flex-start;
   }
 
@@ -374,4 +374,38 @@
     margin-top: 4px;
     font-variant-numeric: tabular-nums;
   }
+}
+
+// intestazione del pannello: "Livelli" (solo telefono) e ingresso nella modalità semplificata
+.panel-head {
+  display: flex;
+  gap: 6px;
+}
+
+.simple-enter,
+.simple-exit {
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.simple-exit {
+  position: absolute;
+  z-index: 3;
+  top: 10px;
+  left: 10px;
+}
+
+// modalità semplificata: barra GPS a tutta larghezza in basso
+:host(.simple) .gps {
+  left: 10px;
+  right: 10px;
+  bottom: 16px;
 }

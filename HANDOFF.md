@@ -3,7 +3,7 @@
 Documento per riprendere il lavoro da zero (nuovo account, nuovo assistente, nuovo PC).
 **Va aggiornato alla fine di ogni blocco di lavoro**: sezioni "Stato", "Prossimi passi" e "Registro".
 
-Ultimo aggiornamento: **2026-11-16** — "Torna alla macchina" (vedi Registro).
+Ultimo aggiornamento: **2026-11-16** — modalità semplificata e "📍 Posizione" (vedi Registro).
 
 ---
 
@@ -100,6 +100,8 @@ Struttura (`src/app/`):
 | `core/recorder.service.ts` | Registrazione traccia: filtro precisione (≤35 m) e passo (≥5 m), stato salvato in `localStorage` (`vertiplan.recording.v1`) e ripreso in pausa dopo una chiusura |
 | `core/navigation.service.ts` | Navigazione lungo la traccia caricata: rimanente, avanzamento, fuori percorso (>50 m per 2 letture) |
 | `core/car.service.ts` | "Torna alla macchina": parcheggio salvato in `localStorage` (`vertiplan.car.v1`), ritorno sui sentieri / ripercorrendo la traccia / in linea retta, poi navigazione |
+| `core/ui-mode.service.ts` | Modalità semplificata (`localStorage` `vertiplan.simple.v1`) |
+| `core/share.service.ts` | Condivisione: `@capacitor/share` nell'app, `navigator.share` o appunti nel browser; testo posizione con coordinate decimali e gradi/primi/secondi |
 | `gps-bar/` | Barra GPS sulla mappa: Registra / Pausa / Salva / Scarta, Naviga / Fine, Segui |
 | `map-view/` | Mappa: livelli, tappe, trascinamento linea, popup SAT, riquadro valanghe |
 | `map-view/sat-layer.ts`, `terrain-layers.ts`, `avalanche-layer.ts` | Definizioni dei layer; `terrain-layers` registra il protocollo `slope://` |
@@ -119,6 +121,12 @@ Struttura (`src/app/`):
     mostra segnaposto, linea tratteggiata e riquadro con **distanza in linea d'aria** e **dislivello** (quote dal modello
     del terreno); se posizione e punto sono sul percorso caricato (entro 80 m), anche km/↗/↘/tempo **lungo il percorso**
     (avanti o indietro). Si aggiorna camminando; ✕ per chiudere (lo scarto della registrazione usa 🗑, per non confonderli).
+  - **🥾 Modalità semplificata** (webapp e app): pulsante "🥾 Semplice" sulla mappa, "✕ Completa" per uscire, ricordata
+    alla riapertura. Solo mappa a tutto schermo + barra GPS con **pulsanti grandi su 2 colonne** (Registra/Pausa, Salva,
+    Torna all'auto, Naviga, Posizione) e numeri grandi; niente pannello, altimetria, livelli. Il cestino non c'è (si scarta
+    dalla modalità completa: coi guanti è facile sbagliare).
+  - **📍 Posizione** (webapp e app): coordinate fresche in grande (decimali e gradi/primi/secondi), precisione, quota,
+    ora; **Condividi** (menu di Android: WhatsApp, SMS…; nel browser condivisione di sistema o appunti), **Copia**, Aggiorna.
   - **🚗 Torna alla macchina** (webapp e app): segna il parcheggio "Qui (GPS)" o "Sulla mappa" (all'avvio di una
     registrazione l'app chiede "Segno qui l'auto?" se non ce n'è una delle ultime 12 h); segnaposto 🚗 sulla mappa;
     il menu mostra distanza in linea d'aria e direzione (N/NE/…) e offre il ritorno **sui sentieri** (BRouter, serve rete;
@@ -199,6 +207,8 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
   deviazione per l'avviso). Sul Pixel: servizio in primo piano attivo (`dumpsys activity services`), posizioni ricevute
   anche a schermo spento. Sul campo la traccia a schermo spento veniva sostituita da una riga dritta: causa trovata e
   corretta (vedi §7), verificata nel browser con 60 posizioni consegnate in blocco (tutte registrate) → **da riprovare camminando**.
+- Modalità semplificata e Posizione: verificate nel browser (desktop e dimensione telefono); condivisione nativa e copia
+  negli appunti nell'app **da provare sul telefono** (nel pannello di prova gli appunti sono bloccati: l'app lo segnala).
 - "Torna alla macchina": verificato nel browser con GPS simulato (domanda all'avvio, salvataggio, distanza/direzione,
   ripercorri la traccia, sui sentieri, ripiego in linea retta senza rete, scelta sulla mappa); **non ancora sul telefono**.
   Le "indicazioni" sono quelle della navigazione (niente svolte "a destra fra 200 m"): idea futura, svolte con i numeri SAT.
@@ -226,9 +236,8 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 
 ## 9. Prossimi passi (in ordine di priorità suggerito)
 
-1. **Modalità semplificata** (decisa con l'utente: pulsanti grandi Registra / Torna all'auto / Naviga / Condividi posizione,
-   mappa a tutto schermo), poi **condividi posizione / emergenza** e **ora limite di rientro** (tramonto).
-   **Provare il GPS sul campo** (registrazione a schermo spento, navigazione), permesso notifiche su Android 13+.
+1. **Ora limite di rientro** (tramonto + tempo per tornare all'auto), freccia/bussola verso l'auto.
+   **Provare sul campo** GPS, Torna all'auto, modalità semplificata e condivisione (registrazione a schermo spento, navigazione), permesso notifiche su Android 13+.
    Poi **offline** (tappa 4: PMTiles per zona). Icona e splash dell'app da personalizzare.
 2. **Backend leggero**: account, sincronizzazione della libreria, condivisione di un percorso via link; **proxy per i WMS
    della Provincia** (ombreggiatura LiDAR, carta tecnica 2025, ortofoto), così funzionano sia nella webapp sia nell'app.
@@ -262,6 +271,7 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 | 2026-10-29 | `024f8b3` | App rinominata da Crinalia a **VertiPlan**; repo pubblicato su github.com/teomobile/VertiPlan |
 | 2026-10-29 | `7b88148` | App Android con Capacitor 8.6 (JDK 21), provata su Pixel 8a; altimetria leggibile e livelli in griglia su telefono; pressione prolungata funzionante nella WebView |
 | 2026-10-30 | `003ceb0` | Handoff: webapp e app allineate nel limite del possibile; WMS della Provincia |
+| 2026-11-16 | (questo commit) | Modalità semplificata (pulsanti grandi) e "📍 Posizione" con condivisione |
 | 2026-11-16 | `498f247` | "Torna alla macchina": parcheggio, ritorno sui sentieri / sulla traccia / in linea retta con navigazione |
 | 2026-11-16 | `a7fb373` | GPS: corretta la riga dritta dopo lo schermo spento (posizioni consegnate una per una), tappe bloccate durante la registrazione, misura di distanza e dislivello verso un punto toccato |
 | 2026-10-30 | `5577465` | GPS: registrazione traccia e navigazione con avviso fuori percorso (webapp e app, in background solo app); corretto `pointAtDistance` sui tratti di traccia |

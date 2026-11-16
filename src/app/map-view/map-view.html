@@ -1,10 +1,18 @@
 <div class="map" #map></div>
 
+@if (ui.simple()) {
+  <button type="button" class="simple-exit" (click)="ui.toggle()" title="Torna alla modalità completa">✕ Completa</button>
+} @else {
 <div class="panel" [class.open]="panelOpen()">
-  <!-- solo su telefono: il pannello livelli/legende si apre a richiesta -->
-  <button type="button" class="panel-toggle" (click)="panelOpen.set(!panelOpen())" [attr.aria-expanded]="panelOpen()">
-    {{ panelOpen() ? '✕ Chiudi' : '☰ Livelli' }}
-  </button>
+  <div class="panel-head">
+    <!-- solo su telefono: il pannello livelli/legende si apre a richiesta -->
+    <button type="button" class="panel-toggle" (click)="panelOpen.set(!panelOpen())" [attr.aria-expanded]="panelOpen()">
+      {{ panelOpen() ? '✕ Chiudi' : '☰ Livelli' }}
+    </button>
+    <button type="button" class="simple-enter" (click)="ui.toggle()" title="Mappa a tutto schermo e pulsanti grandi, per il sentiero">
+      🥾 Semplice
+    </button>
+  </div>
   <div class="layers">
     @for (l of baseLayers; track l.id) {
       <button type="button" [class.active]="base() === l.id" (click)="base.set(l.id)">{{ l.label }}</button>
@@ -125,6 +133,7 @@
     </ul>
   }
 </div>
+}
 
 @if (store.track().length > 1) {
   <button type="button" class="fit" (click)="fitTrack()" title="Inquadra il percorso">⤢</button>

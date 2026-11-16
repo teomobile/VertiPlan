@@ -15,9 +15,6 @@ export interface CarSpot extends LngLat {
 export type ReturnMode = 'trails' | 'retrace' | 'straight';
 
 const STORAGE_KEY = 'vertiplan.car.v1';
-/** Una posizione GPS più vecchia di così non vale come "posizione attuale". */
-const FIX_MAX_AGE_MS = 60_000;
-const FIX_TIMEOUT_MS = 30_000;
 /** Oltre questo tempo il parcheggio segnato è probabilmente di un'altra uscita: alla registrazione si chiede di nuovo. */
 export const CAR_STALE_MS = 12 * 3600_000;
 
@@ -132,26 +129,8 @@ export class CarService {
     }
   }
 
-  /** Posizione attuale: l'ultima se recente, altrimenti accende il GPS e aspetta la prima (max 30 s). */
-  private async currentFix(): Promise<GeoFix | null> {
-    const last = this.location.fix();
-    if (last && Date.now() - last.time < FIX_MAX_AGE_MS) return last;
-    await this.location.acquire('auto');
-    try {
-      return await new Promise<GeoFix | null>((resolve) => {
-        const timer = setTimeout(() => {
-          off();
-          resolve(null);
-        }, FIX_TIMEOUT_MS);
-        const off = this.location.onFix((fix) => {
-          clearTimeout(timer);
-          off();
-          resolve(fix);
-        });
-      });
-    } finally {
-      await this.location.release('auto');
-    }
+  private currentFix(): Promise<GeoFix | null> {
+    return this.location.current();
   }
 
   private save(spot: CarSpot): void {

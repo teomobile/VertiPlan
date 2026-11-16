@@ -51,6 +51,31 @@ export class LocationService {
   private browserWatch: number | null = null;
   private nativeWatch: string | null = null;
 
+  /**
+   * Posizione attuale: l'ultima se recente, altrimenti accende il GPS il tempo di riceverne una (max 30 s).
+   * null se il GPS non risponde.
+   */
+  async current(maxAgeMs = 60_000, timeoutMs = 30_000): Promise<GeoFix | null> {
+    const last = this.fix();
+    if (last && Date.now() - last.time < maxAgeMs) return last;
+    await this.acquire('posizione');
+    try {
+      return await new Promise<GeoFix | null>((resolve) => {
+        const timer = setTimeout(() => {
+          off();
+          resolve(null);
+        }, timeoutMs);
+        const off = this.onFix((fix) => {
+          clearTimeout(timer);
+          off();
+          resolve(fix);
+        });
+      });
+    } finally {
+      await this.release('posizione');
+    }
+  }
+
   async acquire(user: string): Promise<void> {
     this.users.add(user);
     if (!this.active()) await this.start();

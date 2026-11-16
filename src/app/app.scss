@@ -24,3 +24,14 @@ main {
     padding-bottom: var(--sheet-peek);
   }
 }
+
+// modalità semplificata: solo la mappa, a tutto schermo (pannello e altimetria non ci sono)
+:host(.simple) {
+  display: block;
+
+  main {
+    height: 100dvh;
+    grid-template-rows: 1fr;
+    padding-bottom: 0;
+  }
+}
