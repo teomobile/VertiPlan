@@ -262,6 +262,6 @@ node scripts/build-sat.mjs data/sat-raw/sentieri_tratte.kml
 | 2026-10-29 | `024f8b3` | App rinominata da Crinalia a **VertiPlan**; repo pubblicato su github.com/teomobile/VertiPlan |
 | 2026-10-29 | `7b88148` | App Android con Capacitor 8.6 (JDK 21), provata su Pixel 8a; altimetria leggibile e livelli in griglia su telefono; pressione prolungata funzionante nella WebView |
 | 2026-10-30 | `003ceb0` | Handoff: webapp e app allineate nel limite del possibile; WMS della Provincia |
-| 2026-11-16 | (questo commit) | "Torna alla macchina": parcheggio, ritorno sui sentieri / sulla traccia / in linea retta con navigazione |
+| 2026-11-16 | `498f247` | "Torna alla macchina": parcheggio, ritorno sui sentieri / sulla traccia / in linea retta con navigazione |
 | 2026-11-16 | `a7fb373` | GPS: corretta la riga dritta dopo lo schermo spento (posizioni consegnate una per una), tappe bloccate durante la registrazione, misura di distanza e dislivello verso un punto toccato |
 | 2026-10-30 | `5577465` | GPS: registrazione traccia e navigazione con avviso fuori percorso (webapp e app, in background solo app); corretto `pointAtDistance` sui tratti di traccia |
